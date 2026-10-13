@@ -1,0 +1,14 @@
+# Documentacao temporaria e arquivos locais do editor
+/temp/
+/.vs/
+
+# Base de dados local (original e arquivos extraidos)
+/data/
+nslkdd.zip
+KDDTrain*.txt
+KDDTrain*.arff
+KDDTest*.txt
+KDDTest*.arff
+
+# Amostra de registros exportada durante o diagnostico
+/conflitos-treino.csv
