@@ -22,7 +22,7 @@ Referência da base: M. Tavallaee, E. Bagheri, W. Lu e A. Ghorbani, *A Detailed 
 ## Organização inicial
 
 - `data/raw/`: base original local, fora do versionamento.
-- `temp/`: documentos de diagnóstico para discussão, fora do versionamento.
+- `temp/`: documentos de diagnóstico, fora do versionamento.
 - `conflitos-treino.csv`: amostra local exportada para inspeção, fora do versionamento.
 
 O registro permanente das decisões será preparado em uma próxima etapa.
