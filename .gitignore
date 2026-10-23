@@ -12,3 +12,9 @@ KDDTest*.arff
 
 # Amostra de registros exportada durante o diagnostico
 /conflitos-treino.csv
+
+# Arquivos gerados pela execução local de Python e notebooks
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/

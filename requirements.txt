@@ -1,0 +1,2 @@
+# Versão usada para verificar esta etapa de diagnóstico e limpeza.
+pandas==3.0.1
