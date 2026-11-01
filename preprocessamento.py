@@ -7,6 +7,8 @@ import pandas as pd
 
 ALVO = "class"
 COLUNAS_SUSPEITAS_LEAKAGE = ("tipo_alerta_soc", "score_ids_legado", "tempo_resposta_analista_min")
+# São referências herdadas para investigação de escala, não limites obrigatórios.
+LIMIARES_INVESTIGACAO = {"count": 511, "srv_count": 511, "dst_host_count": 255}
 
 
 def carregar_treino(caminho: str | Path) -> pd.DataFrame:
@@ -17,6 +19,8 @@ def carregar_treino(caminho: str | Path) -> pd.DataFrame:
     dados = pd.read_csv(caminho)
     if ALVO not in dados or dados.empty:
         raise ValueError(f"A base deve ser não vazia e conter {ALVO!r}.")
+    if dados[ALVO].isna().any() or not set(dados[ALVO].unique()).issubset({"normal", "anomaly"}):
+        raise ValueError("A coluna class deve conter somente normal ou anomaly, sem ausências.")
     return dados.copy()
 
 
@@ -39,7 +43,11 @@ def _linha_regra(dados: pd.DataFrame, atributo: str, regra: str, mascara: pd.Ser
 
 
 def analisar_violacoes_dominio(dados: pd.DataFrame) -> pd.DataFrame:
-    """Resume regras objetivas; ausências não contam como violações."""
+    """Resume regras verificadas; ausências não contam como violações.
+
+    O valor 2 em su_attempted é sinalizado por contrariar a definição binária
+    original, sem concluir sua causa nem recodificá-lo automaticamente.
+    """
     linhas = []
     for coluna in ("duration", "src_bytes", "dst_bytes"):
         if coluna in dados:
@@ -47,12 +55,22 @@ def analisar_violacoes_dominio(dados: pd.DataFrame) -> pd.DataFrame:
     for coluna in identificar_taxas(dados):
         linhas.append(_linha_regra(dados, coluna, "0 <= taxa <= 1",
                                   (dados[coluna].lt(0) | dados[coluna].gt(1)).fillna(False)))
-    for coluna, limite in {"count": 511, "srv_count": 511, "dst_host_count": 255}.items():
-        if coluna in dados:
-            linhas.append(_linha_regra(dados, coluna, f"{coluna} <= {limite}", dados[coluna].gt(limite).fillna(False)))
     if "su_attempted" in dados:
         mascara = (~dados["su_attempted"].isin([0, 1])) & dados["su_attempted"].notna()
         linhas.append(_linha_regra(dados, "su_attempted", "su_attempted em {0, 1}", mascara))
+    return pd.DataFrame(linhas)
+
+
+def analisar_faixas_referencia(dados: pd.DataFrame) -> pd.DataFrame:
+    """Destaca contadores altos para investigação, sem classificá-los como erros."""
+    linhas = []
+    for coluna, limiar in LIMIARES_INVESTIGACAO.items():
+        if coluna in dados:
+            mascara = dados[coluna].gt(limiar).fillna(False)
+            linhas.append({"atributo": coluna, "limiar_indicativo": limiar,
+                           "ocorrencias_acima": int(mascara.sum()),
+                           "percentual_base": round(100 * mascara.mean(), 3),
+                           "maximo_observado": dados[coluna].max(skipna=True)})
     return pd.DataFrame(linhas)
 
 
@@ -117,20 +135,88 @@ def encontrar_inconsistencias_caixa(dados: pd.DataFrame, colunas: list[str]) -> 
 def analisar_duplicatas(dados: pd.DataFrame, alvo: str = ALVO) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Resume duplicatas e retorna grupos de entradas com classes conflitantes."""
     entradas = [c for c in dados if c != alvo]
-    grupos = dados.groupby(entradas, dropna=False)[alvo].nunique().rename("classes_distintas")
-    chaves = grupos[grupos.gt(1)].reset_index()
-    conflitos = dados.merge(chaves, on=entradas, how="inner") if len(chaves) else dados.iloc[0:0].copy()
-    if "classes_distintas" not in conflitos:
-        conflitos["classes_distintas"] = pd.Series(dtype="int64")
+    classes_distintas = dados.groupby(entradas, dropna=False, sort=False)[alvo].transform("nunique")
+    mascara = classes_distintas.gt(1)
+    conflitos = dados.loc[mascara].copy()
+    conflitos["classes_distintas"] = classes_distintas.loc[mascara]
     exatas = int(dados.duplicated().sum())
-    mesmas_entradas_mesma_classe = int(dados.duplicated(subset=entradas + [alvo]).sum())
+    mesmas_entradas = int(dados.duplicated(subset=entradas).sum())
     resumo = pd.DataFrame([
         {"tipo": "duplicatas exatas (inclui class)", "quantidade": exatas},
-        {"tipo": "repetições adicionais: mesmas entradas e mesma class", "quantidade": mesmas_entradas_mesma_classe - exatas},
+        {"tipo": "repetições adicionais: mesmas entradas, independente da classe", "quantidade": mesmas_entradas},
         {"tipo": "registros em grupos com classes diferentes", "quantidade": int(len(conflitos))},
     ])
     resumo["percentual"] = (100 * resumo["quantidade"] / len(dados)).round(3)
     return resumo, conflitos
+
+
+def impacto_dos_conflitos(dados: pd.DataFrame, conflitos: pd.DataFrame, alvo: str = ALVO) -> pd.DataFrame:
+    """Simula apenas as contagens da exclusão, sem remover ou alterar registros."""
+    original = dados[alvo].value_counts()
+    envolvidos = conflitos[alvo].value_counts().reindex(original.index, fill_value=0)
+    tabela = pd.DataFrame({"registros_originais": original, "registros_envolvidos": envolvidos})
+    tabela["restantes_se_excluir"] = original - envolvidos
+    tabela["percentual_da_classe_envolvido"] = (100 * envolvidos / original).round(3)
+    return tabela.rename_axis("classe").reset_index()
+
+
+def _v_de_cramer(valores: pd.Series, alvo: pd.Series) -> float:
+    """Associação nominal sem impor ordem aos códigos; ausência é uma categoria."""
+    categorias = valores.astype("string").fillna("<AUSENTE>")
+    observados = pd.crosstab(categorias, alvo).to_numpy(dtype=float)
+    dimensao = min(observados.shape) - 1
+    if dimensao < 1:
+        return np.nan
+    n = observados.sum()
+    esperados = np.outer(observados.sum(axis=1), observados.sum(axis=0)) / n
+    qui_quadrado = ((observados - esperados) ** 2 / esperados).sum()
+    return float(np.sqrt(qui_quadrado / (n * dimensao)))
+
+
+def analisar_associacoes_com_classe(dados: pd.DataFrame, alvo: str = ALVO) -> pd.DataFrame:
+    """Diagnóstico de cada atributo, não um filtro de seleção para modelos.
+
+    Pearson equivale à correlação ponto-bisserial para anomaly=1/normal=0.
+    Usa somente pares observados. Cramér V trata os nominais, incluindo
+    protocolo_cod, sem impor ordem, com ausência como categoria explícita.
+    Correlação/associação não estabelecem origem temporal ou vazamento.
+    """
+    y = dados[alvo].map({"normal": 0, "anomaly": 1})
+    if y.isna().any():
+        raise ValueError("A associação exige classes normal/anomaly, sem ausências.")
+    linhas = []
+    for coluna in dados.columns:
+        if coluna == alvo:
+            continue
+        valores = dados[coluna]
+        nominal = coluna == "protocolo_cod" or not pd.api.types.is_numeric_dtype(valores)
+        medida = "Cramer V" if nominal else "Pearson"
+        if nominal:
+            valor = _v_de_cramer(valores, dados[alvo])
+            utilizados = len(dados)
+        else:
+            pares = valores.notna() & y.notna()
+            utilizados = int(pares.sum())
+            valor = float(valores.loc[pares].corr(y.loc[pares])) if valores.loc[pares].nunique() > 1 and y.loc[pares].nunique() > 1 else np.nan
+        linhas.append({"atributo": coluna, "medida": medida, "valor": valor,
+                       "n_utilizados": utilizados, "ausencias": int(valores.isna().sum()),
+                       "percentual_ausente": round(100 * valores.isna().mean(), 3),
+                       "sob_investigacao_temporal": coluna in COLUNAS_SUSPEITAS_LEAKAGE})
+    return pd.DataFrame(linhas)
+
+
+def resumir_ausencias_por_classe(dados: pd.DataFrame, colunas: list[str] | tuple[str, ...], alvo: str = ALVO) -> pd.DataFrame:
+    """Quantifica o padrão de ausência por classe, sem imputar valores."""
+    linhas = []
+    for coluna in colunas:
+        if coluna not in dados:
+            continue
+        for classe, grupo in dados.groupby(alvo, sort=True):
+            faltantes = int(grupo[coluna].isna().sum())
+            linhas.append({"atributo": coluna, "classe": classe, "registros": len(grupo),
+                           "ausentes": faltantes, "observados": len(grupo) - faltantes,
+                           "percentual_ausente": round(100 * faltantes / len(grupo), 3)})
+    return pd.DataFrame(linhas)
 
 
 def verificar_redundancias(dados: pd.DataFrame) -> pd.DataFrame:

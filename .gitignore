@@ -10,6 +10,11 @@ KDDTrain*.arff
 KDDTest*.txt
 KDDTest*.arff
 
+# Arquivos oficiais do Canvas, inclusive se forem copiados para a raiz
+treino.csv
+teste_sem_rotulo.csv
+modelo_de_submissao.csv
+
 # Amostra de registros exportada durante o diagnostico
 /conflitos-treino.csv
 
