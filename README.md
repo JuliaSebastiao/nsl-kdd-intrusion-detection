@@ -22,6 +22,8 @@ O notebook do Git é mantido sem saídas com registros da base. As cópias execu
 
 O arquivo para entregar é [o relatório da Etapa 1](output/pdf/relatorio_etapa1.pdf). Ele contém os principais achados, limitações e links para este repositório e para [o notebook da análise](01_analise_exploratoria.ipynb). O notebook deve ser executado com `preprocessamento.py` na raiz do projeto, seguindo as instruções acima.
 
+A apresentação acadêmica segue o [guia de normalização da PUC Minas (2025)](https://www.pucminas.br/biblioteca/DocumentoBiblioteca/ABNT-GUIA-COMPLETO-Elaborar-formatar-trabalho-cientifico.pdf), adaptado ao relatório da disciplina. A identificação informa Ciência da Computação, Belo Horizonte e os cinco integrantes do Trabalho Prático 3. O PDF reúne capa, folha de rosto, sumário, cinco páginas de conteúdo e referências.
+
 O relatório aponta diretamente para a branch `feat/preprocessamento-etapa2`, que contém a versão revisada da análise. Essa branch ainda não foi integrada à `main`. A equipe autorizou tornar o repositório público para permitir o acesso da professora pelo link. Os CSVs e as cópias executadas locais continuam fora do Git.
 
 ## Cópia independente do notebook, opcional
