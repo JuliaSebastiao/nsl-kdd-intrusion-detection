@@ -1,6 +1,6 @@
 # NSL-KDD: Detecção de Intrusão em Redes
 
-Projeto acadêmico da competição de IA. A primeira entrega é uma análise exploratória reprodutível da base oficial do Canvas.
+Projeto acadêmico da competição de IA. A primeira entrega é um relatório em PDF com o diagnóstico da base oficial do Canvas e o link para o notebook no GitHub, conforme o formato confirmado pela equipe.
 
 ## Base oficial
 
@@ -16,7 +16,25 @@ python -m venv .venv
 
 Abra `01_analise_exploratoria.ipynb` a partir da raiz, selecione o Python da `.venv` no ambiente de notebooks e execute as células na ordem. Quem já usa outro ambiente de notebooks pode instalar `requirements.txt` nesse ambiente.
 
-O notebook do Git é mantido sem saídas com registros da base. Para entregar, salve uma cópia executada em `temp/`, que permanece fora do versionamento.
+O notebook do Git é mantido sem saídas com registros da base. As cópias executadas ficam em `temp/`, fora do versionamento. O relatório em PDF é versionado em `output/pdf/`.
+
+## Entrega da Etapa 1: relatório em PDF
+
+O arquivo para entregar é [o relatório da Etapa 1](output/pdf/relatorio_etapa1.pdf). Ele contém os principais achados, limitações e links para este repositório e para [o notebook da análise](01_analise_exploratoria.ipynb). O notebook deve ser executado com `preprocessamento.py` na raiz do projeto, seguindo as instruções acima.
+
+O relatório aponta diretamente para a branch `feat/preprocessamento-etapa2`, que contém a versão revisada da análise. Essa branch ainda não foi integrada à `main`. A equipe autorizou tornar o repositório público para permitir o acesso da professora pelo link. Os CSVs e as cópias executadas locais continuam fora do Git.
+
+## Cópia independente do notebook, opcional
+
+```powershell
+python preparar_entrega_etapa1.py
+```
+
+O comando gera `temp/entrega-etapa1/01_analise_exploratoria_entrega.ipynb`, `requirements.txt` e `LEIA-ME.md`. As funções atuais de `preprocessamento.py` são incluídas no notebook gerado; quem recebe a entrega não precisa desse módulo nem do repositório. A manutenção continua no notebook original e no módulo, para evitar duas implementações diferentes.
+
+A geração produz uma cópia sem saídas: coloque o `treino.csv` oficial na mesma pasta, abra o notebook nessa pasta, selecione o Python com as bibliotecas indicadas e execute tudo a partir de um kernel reiniciado. Também é possível ajustar `DATA_PATH` para apontar ao treino em outro local. Essa cópia é um apoio para execução fora do repositório; o arquivo da entrega é o PDF. O CSV não é copiado pelo comando nem incluído no pacote de apoio. Os arquivos de teste não são necessários para a Etapa 1.
+
+Requisitos: Python 3.11 ou superior, as versões de `requirements.txt` e um ambiente de notebooks com IPython. O ambiente usado na validação é Python 3.12. A cópia executada do notebook modular fica em `temp/validacao-etapa1-2026-11-01/`; a versão independente para entregar fica em `temp/entrega-etapa1/`.
 
 ## Escopo da Etapa 1
 
