@@ -7,6 +7,11 @@ import pandas as pd
 
 ALVO = "class"
 COLUNAS_SUSPEITAS_LEAKAGE = ("tipo_alerta_soc", "score_ids_legado", "tempo_resposta_analista_min")
+# Exclusões já aprovadas para a futura Etapa 2; não alteram a leitura ou a EDA.
+# Não definem a referência completa: as outras colunas continuam em discussão.
+COLUNAS_EXCLUIDAS_EXPERIMENTOS = (
+    "num_outbound_cmds", "tempo_resposta_analista_min", "tipo_alerta_soc", "score_ids_legado",
+)
 # São referências herdadas para investigação de escala, não limites obrigatórios.
 LIMIARES_INVESTIGACAO = {"count": 511, "srv_count": 511, "dst_host_count": 255}
 
