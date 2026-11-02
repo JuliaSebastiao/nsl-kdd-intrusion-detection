@@ -1,7 +1,8 @@
-"""Prepara uma cópia de entrega sem depender do módulo local ou incluir a base.
+"""Prepara cópias independentes da análise, sem incluir a base.
 
 Uso: python preparar_entrega_etapa1.py
 Depois, abra a cópia gerada com o treino oficial na mesma pasta e execute tudo.
+Para gerar a versão com preparação automática no Colab, use --colab.
 """
 
 import argparse
@@ -13,8 +14,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent
 
 
-def preparar_entrega(destino: Path) -> Path:
-    """Inclui as funções atuais no notebook e copia as instruções de execução."""
+def montar_notebook_independente() -> dict:
+    """Inclui as funções atuais e remove saídas, sem escrever arquivos."""
     notebook = json.loads((RAIZ / "01_analise_exploratoria.ipynb").read_text(encoding="utf-8"))
     modulo = (RAIZ / "preprocessamento.py").read_text(encoding="utf-8")
     indices = [i for i, c in enumerate(notebook["cells"])
@@ -70,6 +71,12 @@ print(DATA_PATH.name, dados.shape)
         "funcoes_origem": "preprocessamento.py",
         "sha256_funcoes": hashlib.sha256(modulo.encode("utf-8")).hexdigest(),
     }
+    return notebook
+
+
+def preparar_entrega(destino: Path) -> Path:
+    """Inclui as funções atuais no notebook e copia as instruções de execução."""
+    notebook = montar_notebook_independente()
     destino.mkdir(parents=True, exist_ok=True)
     target = destino / "01_analise_exploratoria_entrega.ipynb"
     target.write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -96,11 +103,91 @@ print(DATA_PATH.name, dados.shape)
     return target
 
 
+def preparar_colab(destino: Path) -> Path:
+    """Gera uma cópia que prepara bibliotecas e solicita apenas o CSV ausente."""
+    notebook = montar_notebook_independente()
+    instrucoes = next(c for c in notebook["cells"] if c.get("id") == "entrega-instrucoes")
+    instrucoes["id"] = "colab-instrucoes"
+    instrucoes["source"] = """### Executar no Google Colab
+
+1. Escolha **Ambiente de execução > Executar tudo**. Não é necessário clonar o GitHub ou editar caminhos.
+2. Se `treino.csv` ainda não estiver nesta sessão, selecione o arquivo oficial quando o notebook solicitar. Se você já o enviou para a pasta inicial do Colab, ele será reutilizado.
+3. Aguarde as tabelas, os nove gráficos e o diagnóstico. Para guardar a sua cópia, use **Arquivo > Salvar uma cópia no Drive**.
+
+Todas as funções de diagnóstico estão incluídas aqui. O notebook usa as bibliotecas disponíveis no ambiente e instala somente as ausentes, antes dos imports da análise. As versões utilizadas são exibidas; elas podem diferir do ambiente fixado em `requirements.txt`, usado para a validação local. O teste da competição não é necessário.
+
+O CSV não está incorporado ao notebook nem publicado no GitHub. Em uma nova máquina de execução do Colab, será necessário fornecê-lo novamente. O botão de executar de uma célula roda apenas aquela célula; **Executar tudo** roda a análise completa.
+""".splitlines(keepends=True)
+    ambiente = """# Preparação automática, antes de importar as bibliotecas da análise.
+import sys
+import subprocess
+from importlib.util import find_spec
+from importlib.metadata import version
+
+VERSOES_REFERENCIA = {
+    "pandas": "3.0.1",
+    "numpy": "2.4.2",
+    "matplotlib": "3.10.8",
+    "seaborn": "0.13.2",
+}
+ausentes = [f"{nome}=={versao}" for nome, versao in VERSOES_REFERENCIA.items()
+            if find_spec(nome) is None]
+if ausentes:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", *ausentes])
+VERSOES_AMBIENTE = {nome: version(nome) for nome in VERSOES_REFERENCIA}
+print("Python:", sys.version.split()[0])
+print("Bibliotecas desta execução:", VERSOES_AMBIENTE)
+"""
+    index = next(i for i,c in enumerate(notebook["cells"]) if c.get("id") == "entrega-funcoes")
+    notebook["cells"].insert(index, {
+        "cell_type": "code", "metadata": {}, "id": "colab-ambiente",
+        "execution_count": None, "outputs": [], "source": ambiente.splitlines(keepends=True),
+    })
+    carregamento = """%matplotlib inline
+from pathlib import Path
+from IPython.display import Markdown, display
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+# Reutiliza o treino já disponível na sessão, sem ler o teste.
+candidatos = [Path("data/raw/treino.csv"), Path("treino.csv"), Path("/content/treino.csv")]
+DATA_PATH = next((p for p in candidatos if p.is_file()), None)
+if DATA_PATH is None:
+    try:
+        from google.colab import files
+    except ImportError as erro:
+        raise FileNotFoundError(
+            "Coloque o treino.csv oficial nesta pasta ou em data/raw/ e execute novamente."
+        ) from erro
+    DATA_PATH = Path("data/raw/treino.csv")
+    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    print("Selecione somente o treino.csv oficial disponibilizado pela professora.")
+    files.upload_file(str(DATA_PATH))
+
+dados = carregar_treino(DATA_PATH)
+print(DATA_PATH.name, dados.shape)
+"""
+    loading = notebook["cells"][index + 2]
+    loading["source"] = carregamento.splitlines(keepends=True)
+    notebook["metadata"]["reproducao_etapa1"] = notebook["metadata"].pop("entrega_etapa1")
+    notebook["metadata"]["colab"] = {"provenance": []}
+    destino.mkdir(parents=True, exist_ok=True)
+    target = destino / "01_analise_exploratoria_colab.ipynb"
+    target.write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return target
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--destino", type=Path, default=RAIZ / "temp" / "entrega-etapa1")
+    parser.add_argument("--destino", type=Path)
+    parser.add_argument("--colab", action="store_true", help="Gera a versão para Executar tudo no Colab.")
     args = parser.parse_args()
-    target = preparar_entrega(args.destino.resolve())
+    if args.colab:
+        target = preparar_colab((args.destino or RAIZ).resolve())
+    else:
+        target = preparar_entrega((args.destino or RAIZ / "temp" / "entrega-etapa1").resolve())
     print(f"Cópia preparada, ainda sem executar: {target}")
 
 

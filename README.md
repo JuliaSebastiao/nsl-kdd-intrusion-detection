@@ -6,7 +6,29 @@ Projeto acadêmico da competição de IA. A primeira entrega é um relatório em
 
 Coloque os arquivos oficiais do Canvas em `data/raw/`: `treino.csv`, `teste_sem_rotulo.csv` e `modelo_de_submissao.csv`. A pasta e esses nomes de arquivo estão no `.gitignore`; os dados não devem ser versionados. O notebook da Etapa 1 lê apenas `data/raw/treino.csv`, usa `class` como alvo e não depende de Kaggle, internet, `nslkdd.zip`, `KDDTrain+.txt`, `attack_type` ou `difficulty`.
 
-## Executar
+## Executar no Google Colab
+
+[![Abrir no Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/JuliaSebastiao/nsl-kdd-intrusion-detection/blob/feat/preprocessamento-etapa2/01_analise_exploratoria_colab.ipynb)
+
+1. Abra a cópia `01_analise_exploratoria_colab.ipynb` pelo botão acima.
+2. Escolha **Ambiente de execução > Executar tudo**.
+3. Se solicitado, selecione apenas o `treino.csv` oficial. As demais células continuam em sequência.
+
+Essa cópia contém as funções de diagnóstico. Não é necessário clonar o repositório, enviar `preprocessamento.py` ou editar caminhos. O treino já enviado para a pasta inicial da sessão ou para `data/raw/` é reutilizado; caso não exista, o notebook abre o seletor de arquivo. Os CSVs continuam fora do Git e, em uma nova máquina de execução do Colab, precisam ser fornecidos novamente.
+
+Para evitar reinstalações do ambiente durante a execução, a cópia usa as bibliotecas disponíveis e instala apenas as ausentes. Ela mostra as versões utilizadas, que podem diferir das versões fixadas em `requirements.txt` para a validação local. O funcionamento e a duração da máquina do Colab estão descritos no [FAQ oficial](https://research.google.com/colaboratory/faq.html).
+
+O notebook modular `01_analise_exploratoria.ipynb` e `preprocessamento.py` são as fontes de manutenção. Para atualizar a cópia versionada do Colab após editar essas fontes:
+
+```powershell
+python preparar_entrega_etapa1.py --colab
+```
+
+O comando gera o arquivo sem saídas da base. A análise permanece a mesma; somente a preparação do ambiente e o carregamento do CSV são adaptados.
+
+A cópia foi executada em kernels locais isolados com as bibliotecas de referência e com pandas 2.2.3, NumPy 2.4.6, Matplotlib 3.10.0 e Seaborn 0.13.2, versões da [lista publicada pelo Colab](https://github.com/googlecolab/backend-info/blob/main/pip-freeze.txt) consultada em 01/11/2026. As duas execuções produziram o mesmo diagnóstico e nove gráficos. O seletor do CSV foi simulado na validação local; a sessão em nuvem não foi acessada.
+
+## Executar localmente
 
 ```powershell
 python -m venv .venv
