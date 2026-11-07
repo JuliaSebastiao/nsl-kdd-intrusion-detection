@@ -74,8 +74,8 @@ Nenhum modelo é treinado, nenhuma técnica de balanceamento é aplicada e nenhu
 
 [DECISOES.md](DECISOES.md) reúne as escolhas aprovadas, as regras do enunciado e os pontos que continuam em discussão.
 
-## Preparação da Etapa 2
+## Etapa 2 — Pré-processamento no Colab
 
-As exclusões aprovadas estão em `COLUNAS_EXCLUIDAS_EXPERIMENTOS`: `num_outbound_cmds` e, provisoriamente, `tempo_resposta_analista_min`, `tipo_alerta_soc` e `score_ids_legado`. A leitura e o diagnóstico preservam essas colunas. Foi aprovada a comparação de três representações: manter as cinco derivadas (45 atributos candidatos), retirar as quatro cópias mantendo `total_bytes` (41), ou retirar as cinco derivadas (40). As contagens são anteriores à codificação; nenhuma versão foi escolhida como vencedora.
+No [Google Colab](https://colab.research.google.com/), use **Arquivo → Fazer upload de notebook** para abrir [02_preprocessamento_colab.ipynb](02_preprocessamento_colab.ipynb). Escolha **Ambiente de execução → Executar tudo** e forneça o `treino.csv` oficial do Canvas quando solicitado. A execução instala as bibliotecas necessárias em um ambiente separado quando as versões são diferentes. O notebook inclui todo o código e usa apenas esse CSV. A preparação das dependências e os 137 ajustes levam alguns minutos em CPU.
 
-As entradas nominais são diagnosticadas na Etapa 1, mas ainda não foram codificadas para modelos. `protocolo_cod` é nominal apesar dos códigos numéricos. One-hot encoding é a proposta inicial em discussão para a Etapa 2, que exige pelo menos uma técnica de codificação justificada. A proposta e os cuidados com ausências, categorias novas e ajuste apenas no treino estão em [DECISOES.md](DECISOES.md).
+As tabelas mostram as alternativas de limpeza, imputação, codificação, escala, balanceamento e redução, além das combinações com árvore e rede neural. A validação usa divisões por grupo dentro do treino oficial. Os resultados e as justificativas de cada escolha estão em [DECISOES.md](DECISOES.md).

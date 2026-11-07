@@ -40,28 +40,54 @@ O treino oficial tem 69.833 registros, 49 atributos e o alvo binário. A descri�
 
 O impacto da retirada dos conflitos aumentou: os grupos conflitantes envolvem 46,482% dos registros `anomaly`. Por isso, preservar a comparação aprovada não significa adotar automaticamente essa limpeza. O efeito deve ser avaliado por classe.
 
-As quatro relações algébricas e a codificação de protocolo são diagnosticadas como redundâncias. Nenhuma coluna derivada foi excluída da base ou do diagnóstico. Foi aprovada a comparação futura das versões A, B e C; sua eventual utilidade depende do modelo e da validação interna.
+As quatro relações algébricas e a codificação de protocolo são diagnosticadas como redundâncias. O diagnóstico e a base original preservam as colunas derivadas. As versões A, B e C foram comparadas na Etapa 2.
 
-## Entradas nominais: situação e proposta em discussão
+## Entradas nominais
 
 O diagnóstico preserva `protocol_type`, `service` e `flag` como categorias sem ordem. `protocolo_cod` também é nominal, apesar do armazenamento numérico: a associação com a classe já é calculada por V de Cramér, sem interpretar seus códigos como grandezas. `tipo_alerta_soc` continua no diagnóstico categórico, mas está provisoriamente excluída dos experimentos. A identificação por dtype descreve o armazenamento, não substitui essa interpretação semântica.
 
-Ainda não existe um codificador de entradas ajustado ou aplicado. A detecção de variantes usa `strip` e `casefold` em séries temporárias, sem padronizar a base original.
+Na Etapa 1, a detecção de variantes usa `strip` e `casefold` em séries temporárias. Na Etapa 2, a mesma padronização é aplicada nas cópias usadas pelos experimentos. O vocabulário de cada codificador é aprendido na parte de treino de cada divisão. Na validação, o one-hot completo representa categorias novas com zeros nas colunas daquele atributo. O codificador inteiro usa um código reservado para elas. Na versão A, `protocolo_cod` é tratado como nominal.
 
-Proposta pendente de aprovação: usar one-hot encoding como primeira técnica para as entradas nominais mantidas em cada versão. Antes de implementar, definir a padronização das categorias, o tratamento das ausências e a política para categorias novas. O vocabulário deve ser aprendido somente na parcela de treino de cada rodada e reutilizado na validação, mantendo o mesmo esquema de colunas. Aplicar ao teste apenas após definir e ajustar o pipeline final com o treino oficial. Medir o aumento de dimensionalidade, especialmente de `service`. Se `protocolo_cod` permanecer na versão A, tratá-lo como nominal também na codificação.
+Referências de implementação — [codificação de categorias](https://scikit-learn.org/stable/modules/preprocessing.html#encoding-categorical-features), [OneHotEncoder](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html) e [prevenção de vazamento](https://scikit-learn.org/stable/common_pitfalls.html).
 
-Referências da proposta: [codificação de categorias](https://scikit-learn.org/stable/modules/preprocessing.html#encoding-categorical-features), [OneHotEncoder](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html) e [prevenção de vazamento](https://scikit-learn.org/stable/common_pitfalls.html).
+## Comparação de pré-processamento da Etapa 2
+
+Os experimentos usaram somente o `treino.csv` oficial, com F1-macro como critério principal e recall de `anomaly` como complemento. As opções seguem as Partes 1, 2, 3, 4, 6 e 7 do material da disciplina. A referência foi a versão C, com mediana, categoria explícita para ausência, one-hot completo, Z-score, todas as linhas, sem balanceamento e sem redução. O diagnóstico de domínio serviu para marcar como ausentes durações e bytes negativos e taxas fora de [0, 1] nas cópias de trabalho.
+
+Usamos cinco divisões estratificadas por grupo com semente 42. Os grupos correspondem a entradas iguais na versão C depois da padronização de categorias e das regras de domínio, ignorando o rótulo. As quatro primeiras divisões serviram para a comparação de alternativas. A quinta ficou fora dos ajustes e das medições dessas rodadas e foi usada para conferir as combinações predefinidas. Tinha 13.883 registros, dos quais 788 eram anomalias. A mesma divisão já havia entrado nas médias do piloto anterior. A validação manteve a composição original de cada divisão. Imputação, codificação, escala, seleção e amostragem foram ajustadas apenas nas respectivas parcelas de treino.
+
+### Efeito de variar uma técnica
+
+| Decisão | F1-macro médio nas quatro divisões | Interpretação |
+| --- | --- | --- |
+| Representação | A 0,8544 · B 0,8544 · C 0,8543 | Usar C, com 40 atributos antes da codificação. As derivadas não trouxeram ganho relevante na árvore de referência. |
+| Linhas de treino | Todas 0,8543 · sem duplicatas de mesmo rótulo 0,8556 · sem conflitos 0,8514 · sem ambos 0,8519 | Remover apenas duplicatas de mesmo rótulo nas duas combinações recomendadas. Esse tratamento reduziu cerca de 16% das linhas de ajuste, enquanto excluir conflitos reduziu o recall de anomalias de 70,64% para 69,13% na comparação isolada. |
+| Imputação numérica | Mediana 0,8543 · média 0,8553 · mediana com indicador 0,8541 · KNN 0,8570 | O KNN com cinco vizinhos e 2.000 referências amostradas do treino ficou à frente na árvore em quatro de quatro divisões. A mediana fica na referência e na configuração indicada para a rede. |
+| Ausência nominal | Categoria explícita 0,8543 · moda 0,8568 | A moda ganhou pouco na árvore. A categoria explícita preserva a informação de que o valor estava ausente e fica na configuração da rede. |
+| Codificação | One-hot 0,8543 · one-hot agrupando serviços raros 0,8543 · inteiros 0,8579 | Códigos inteiros ficaram à frente na árvore, mas a combinação com KNN e moda perdeu desempenho na rede. O agrupamento reduziu colunas, com perda de desempenho na divisão reservada da árvore. O one-hot completo continua a referência sem ordem artificial. |
+| Escala na rede | Z-score 0,8386 · Min-Max 0,8353 · robusta 0,8000 · sem escala 0,7547 | Usar Z-score. Ele ganhou nas quatro divisões do teste de escala. A rede foi pequena, com 16 neurônios e limite de 16 iterações, atingido nesses testes. |
+| Balanceamento na árvore | Nenhum 0,8543 · oversampling 0,8499 · undersampling 0,8261 | Manter a árvore sem amostragem. Os dois métodos usaram a proporção de 1 anomalia para 2 registros normais. O oversampling elevou o recall de 70,64% para 78,81%, com menor precisão de anomalias. |
+| Redução na árvore | Nenhuma 0,8543 · filtro univariado de 60 entradas 0,8359 · PCA de 60 componentes 0,8533 | O PCA é a melhor redução entre as duas testadas. Para maximizar F1-macro, manter as entradas das configurações recomendadas. Na árvore com deduplicação, o PCA ficou ligeiramente à frente na divisão reservada, mas abaixo na média das quatro divisões iniciais. |
+
+### Combinações recomendadas para reavaliar na Etapa 3
+
+As duas combinações abaixo usam a versão C, marcam os valores incompatíveis com o domínio como ausentes, removem duplicatas de mesmo rótulo somente durante o ajuste e preservam os grupos conflitantes. Ambas foram testadas com Z-score e sem uma etapa adicional de redução.
+
+| Modelo | Configuração com melhor F1-macro entre as combinações avaliadas para o modelo | Média das quatro divisões | Divisão reservada |
+| --- | --- | --- | --- |
+| Árvore de decisão, profundidade máxima 8 | KNN numérico, moda para ausências nominais, códigos inteiros e sem balanceamento | F1-macro 0,8592 · recall 72,10% | F1-macro 0,8624 · recall 72,84% |
+| Rede neural com 16 neurônios | Mediana, ausência nominal explícita, one-hot completo e oversampling aleatório | F1-macro 0,8430 · recall 76,43% | F1-macro 0,8502 · recall 79,44% |
+
+A árvore com KNN, moda e códigos inteiros superou a referência em todas as quatro comparações e na divisão reservada. A mesma combinação teve F1-macro de 0,8116 na rede nas quatro divisões. O oversampling elevou o recall da rede em relação à configuração deduplicada sem balanceamento, mas a vantagem em F1-macro variou entre divisões. A escolha final deve ser reavaliada com os classificadores da Etapa 3. O teste oficial fica reservado para as previsões finais.
+
+O [notebook independente da Etapa 2](02_preprocessamento_colab.ipynb) reproduz as tabelas com o `treino.csv` oficial e grava os resultados por divisão durante a execução. Os resultados anteriores e o roteiro de comparação também estão em `temp/etapa2-comparacao/`, na cópia local. O ambiente utilizado tinha Python 3.12.14, pandas 3.0.1, NumPy 2.5.4, SciPy 1.18.1, scikit-learn 1.7.2 e imbalanced-learn 0.14.1.
 
 ## Questões ainda abertas
 
 - Confirmar a origem e a disponibilidade temporal de `score_ids_legado`, `tipo_alerta_soc` e `tempo_resposta_analista_min`. As três foram excluídas provisoriamente da referência inicial, com possibilidade de reavaliação se sua disponibilidade e origem forem esclarecidas. Associação com a classe é evidência descritiva, não prova de vazamento.
-- Executar a comparação aprovada das três representações das colunas derivadas e justificar a representação final.
-- Escolher o tratamento das ausências, valores incompatíveis com o domínio, `su_attempted = 2` e extremos.
-- Comparar as estratégias de conflito, verificando a perda de exemplos da classe minoritária.
-- Definir os grupos/folds de validação, evitando separar cópias entre treino e validação.
-- Escolher e comparar as técnicas de codificação, transformação numérica, balanceamento e redução de dimensionalidade ou seleção de instâncias.
-- Escolher os classificadores nas etapas previstas, mantendo as decisões justificadas em conjunto.
+- Verificar `su_attempted = 2` e os valores extremos. Os experimentos preservaram essas observações.
+- Reavaliar as combinações recomendadas ao comparar os classificadores da Etapa 3 e definir o pipeline final.
 
 ## Critério de interpretação
 
-Valores negativos de duração/bytes e frações fora de [0, 1] são apresentados separadamente de limites indicativos dos contadores. Sem documentação que estabeleça um máximo obrigatório, exceder um limite de referência não comprova erro. Nenhuma correção é aplicada automaticamente por essas verificações.
+Valores negativos de duração/bytes e frações fora de [0, 1] são apresentados separadamente de limites indicativos dos contadores. Sem documentação que estabeleça um máximo obrigatório, exceder um limite de referência não comprova erro. O diagnóstico da Etapa 1 preserva a base original.
