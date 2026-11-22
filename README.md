@@ -42,9 +42,9 @@ O notebook do Git é mantido sem saídas com registros da base. As cópias execu
 
 ## Entrega da Etapa 1: relatório em PDF
 
-O arquivo para entregar é [o relatório da Etapa 1](output/pdf/relatorio_etapa1.pdf). Ele contém os principais achados, limitações e links para este repositório e para [o notebook da análise](01_analise_exploratoria.ipynb). O notebook deve ser executado com `preprocessamento.py` na raiz do projeto, seguindo as instruções acima.
+O arquivo versionado da Etapa 1 é [o resumo em PDF](output/pdf/etapa1_resumo.pdf), com uma página de achados e limitações. O [notebook da análise](01_analise_exploratoria.ipynb) deve ser executado com `preprocessamento.py` na raiz do projeto, seguindo as instruções acima.
 
-A apresentação acadêmica segue o [guia de normalização da PUC Minas (2025)](https://www.pucminas.br/biblioteca/DocumentoBiblioteca/ABNT-GUIA-COMPLETO-Elaborar-formatar-trabalho-cientifico.pdf), adaptado ao relatório da disciplina. A identificação informa Ciência da Computação, Belo Horizonte e os cinco integrantes do Trabalho Prático 3. O PDF reúne capa, folha de rosto, sumário, cinco páginas de conteúdo e referências.
+A identificação do resumo informa o Trabalho Prático 3 e os cinco integrantes da equipe. Ele não substitui o relatório acadêmico final.
 
 O relatório aponta diretamente para a branch `feat/preprocessamento-etapa2`, que contém a versão revisada da análise. Essa branch ainda não foi integrada à `main`. A equipe autorizou tornar o repositório público para permitir o acesso da professora pelo link. Os CSVs e as cópias executadas locais continuam fora do Git.
 
@@ -91,3 +91,9 @@ O [notebook de Random Forest](03_random_forest_colab.ipynb) usa a mesma prepara�
 O [notebook de redes neurais](03_redes_neurais_colab.ipynb) compara uma MLP com 16 neurônios em uma camada oculta e uma MLP com três camadas ocultas de 64, 32 e 16 neurônios. Cada rede treina 120 épocas por divisão. A retropropagação calcula os gradientes e o Adam atualiza os pesos. As tabelas incluem as épocas, métricas e matrizes de confusão. O notebook roda em CPU no Colab e pede apenas o `treino.csv` oficial.
 
 O [notebook de deep learning](03_deep_learning_colab.ipynb) treina uma candidata em PyTorch com quatro camadas ocultas e dropout. Ele mostra o ciclo de retropropagação e Adam e executa 120 épocas por divisão. No Colab, selecione GPU para usar CUDA ou execute em CPU. O único arquivo de dados necessário é o `treino.csv` oficial.
+
+## Etapa 3 — Infraestrutura para a próxima comparação
+
+As correções de pré-processamento e o protocolo de seleção interna/avaliação externa por grupos estão em `dados_etapa2.py`, `tecnicas_etapa2.py` e `stage3_evaluation.py`. Os notebooks do Colab incorporam cópias geradas dessas fontes e continuam independentes. Consulte [ambiente, testes e metodologia da Fase 2](docs/STAGE3_PHASE2.md) para reproduzir as verificações e entender a limitação histórica da quinta divisão.
+
+Use Python 3.12 e `requirements-stage3-cpu.txt` para os testes e o fluxo principal em CPU. PyTorch e cuML são opcionais. Nenhuma comparação consolidada com o treino oficial foi executada nesta fase; os resultados existentes em `DECISOES.md` permanecem históricos.
