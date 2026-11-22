@@ -92,8 +92,29 @@ O [notebook de redes neurais](03_redes_neurais_colab.ipynb) compara uma MLP com 
 
 O [notebook de deep learning](03_deep_learning_colab.ipynb) treina uma candidata em PyTorch com quatro camadas ocultas e dropout. Ele mostra o ciclo de retropropagação e Adam e executa 120 épocas por divisão. No Colab, selecione GPU para usar CUDA ou execute em CPU. O único arquivo de dados necessário é o `treino.csv` oficial.
 
-## Etapa 3 — Infraestrutura para a próxima comparação
+## Etapa 3 — Comparação reproduzível
 
 As correções de pré-processamento e o protocolo de seleção interna/avaliação externa por grupos estão em `dados_etapa2.py`, `tecnicas_etapa2.py` e `stage3_evaluation.py`. Os notebooks do Colab incorporam cópias geradas dessas fontes e continuam independentes. Consulte [ambiente, testes e metodologia da Fase 2](docs/STAGE3_PHASE2.md) para reproduzir as verificações e entender a limitação histórica da quinta divisão.
 
-Use Python 3.12 e `requirements-stage3-cpu.txt` para os testes e o fluxo principal em CPU. PyTorch e cuML são opcionais. Nenhuma comparação consolidada com o treino oficial foi executada nesta fase; os resultados existentes em `DECISOES.md` permanecem históricos.
+Use Python 3.12 e `requirements-stage3-report.txt` para executar a comparação completa, gerar gráficos e validar o notebook. Esse arquivo inclui as dependências CPU. PyTorch e cuML são opcionais e ficam fora do orçamento desta comparação.
+
+Abra [03_comparacao_modelos_colab.ipynb](03_comparacao_modelos_colab.ipynb) por upload no Colab e execute todas as células. Ele incorpora os módulos necessários, verifica as versões e solicita somente `treino.csv`. São 15 candidatos, cinco divisões externas e duas internas, sem reduzir a base oficial. Os resultados da Fase 3 e as limitações da seleção estão em [docs/STAGE3_PHASE3.md](docs/STAGE3_PHASE3.md).
+
+Para executar localmente, com a base em `data/raw/treino.csv`:
+
+```powershell
+python -m pip install -r requirements-stage3-report.txt
+python stage3_comparison.py
+python -m unittest discover -s tests -v
+python preparar_notebooks_etapa3.py --check
+```
+
+O executor salva cada ajuste em `temp/stage3_runs/comparacao_cpu/`. Repetir o comando retoma os ajustes concluídos quando dados, fontes, versões e configurações coincidem. Para uma experiência diferente, use outro `--destino`. Não rode dois processos no mesmo destino. O notebook aceita `NSLKDD_TREINO` e `NSLKDD_DESTINO` como variáveis de ambiente; no Colab, use uma pasta do Drive já montado para preservar checkpoints entre sessões.
+
+Os [resultados agregados da base oficial](output/stage3/resultados.json), as [tabelas por divisão](output/stage3/resultados_por_divisao.csv) e [cinco gráficos](output/stage3/f1_algoritmos.png) estão versionados. A RF livre com oversampling 0,5 foi o pipeline recomendado, com F1-macro médio de 0,878817 ± 0,005054 em cinco divisões externas. Os índices, rótulos e previsões por linha permanecem fora do Git. Para recalcular tabelas e gráficos sem treinar:
+
+```powershell
+python stage3_comparison.py --somente-relatorio
+```
+
+A comparação externa contribui para escolher o pipeline final; a pontuação do vencedor não é uma estimativa final independente. O histórico de `DECISOES.md`, incluindo a quinta divisão reutilizada e redes com escolha antiga de épocas, permanece separado dos novos resultados.
