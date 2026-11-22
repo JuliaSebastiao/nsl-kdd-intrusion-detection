@@ -118,3 +118,9 @@ python stage3_comparison.py --somente-relatorio
 ```
 
 A comparação externa contribui para escolher o pipeline final; a pontuação do vencedor não é uma estimativa final independente. O histórico de `DECISOES.md`, incluindo a quinta divisão reutilizada e redes com escolha antiga de épocas, permanece separado dos novos resultados.
+
+## Entrega acadêmica da Etapa 3
+
+O arquivo para enviar à professora é [entrega/etapa3/03_comparacao_modelos_colab.ipynb](entrega/etapa3/03_comparacao_modelos_colab.ipynb). Ele contém o mesmo código do notebook fonte, a tabela comparativa e as saídas verificadas das cinco figuras. A pasta de entrega não contém o CSV oficial, documentos internos, logs nem materiais da Etapa 4. A identificação da equipe e a declaração do apoio de IA generativa estão no notebook.
+
+Para reproduzir no Google Colab, faça upload desse único arquivo, escolha **Ambiente de execução → Executar tudo** e selecione apenas o `treino.csv` oficial quando solicitado; nomes de download como `treino (1).csv` também são aceitos. O notebook incorpora os módulos do projeto e instala as versões necessárias em um diretório separado. A execução completa pode demorar e os checkpoints ficam na sessão, a menos que `NSLKDD_DESTINO` seja configurado para uma pasta persistente. A cópia de entrega foi executada em kernel local isolado fora da raiz do repositório, com o CSV oficial e um checkpoint compatível; não houve execução em uma sessão Colab remota.
