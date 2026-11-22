@@ -84,9 +84,13 @@ def sincronizar_comparacao(*, check=False):
     adicionar("markdown", "introducao", """
 # Etapa 3 — Comparação dos classificadores NSL-KDD
 
-Este notebook executa a comparação usando somente o **treino.csv oficial da professora**.
-Não depende dos notebooks individuais. O teste sem rótulos e a submissão ficam fora desta etapa.
-F1-macro é o critério principal, com classes na ordem **normal, anomaly**.
+**Disciplina:** Inteligência Artificial · Ciência da Computação · PUC Minas  
+**Equipe:** Trabalho Prático 3 (nomes dos integrantes a completar pela equipe).
+
+O objetivo é comparar classificadores de intrusão usando somente o **treino.csv oficial**,
+com `class` como alvo (`normal` ou `anomaly`). A base contém 69.833 registros e 49 atributos;
+as contagens e o esquema são conferidos novamente na execução. F1-macro é o critério
+principal, com classes na ordem **normal, anomaly**. O teste sem rótulos não é usado.
 
 Os resultados históricos de `DECISOES.md` (incluindo escolha antiga de épocas e RF ≈ 0,8744)
 são referências de outro protocolo e não entram nas médias desta execução.
@@ -103,8 +107,8 @@ fica no disco da sessão. Não publique essa pasta: ela contém índices e previ
     if resumo_salvo.exists():
         registro = json.loads(resumo_salvo.read_text(encoding="utf-8"))
         selecao = registro["selecao"]
-        texto = ["## Resultado da execução registrada na Fase 3", "",
-                 "Este resumo agregado foi incorporado ao notebook para permitir revisão sem novo treinamento. "
+        texto = ["## Resultados observados no treino oficial", "",
+                 "Este resumo agregado permite revisar os resultados sem novo treinamento. "
                  "As células abaixo reproduzem a execução e geram suas próprias tabelas e gráficos.", "",
                  f"Dados SHA-256: `{registro['sha256_dados']}`. "
                  f"Tipo: `{registro['tipo_dados']}`; cinco folds externos e dois internos.", "",
@@ -115,8 +119,10 @@ fica no disco da sessão. Não publique essa pasta: ela contém índices e previ
                          f"{r['f1_macro_desvio']:.6f} | {r['precision_anomaly_media']:.6f} | "
                          f"{r['recall_anomaly_media']:.6f} |")
         texto.extend(["", f"**Pipeline recomendado:** `{selecao['configuracao_recomendada']}`. "
-                      "A escolha usa F1-macro; estabilidade, falsos positivos/negativos, gap e custo "
-                      "devem ser lidos nas tabelas completas geradas abaixo. " + selecao["limite"]])
+                      "A escolha usa F1-macro médio. A RF com oversampling obteve 0,878817 "
+                      "e a RF ponderada, 0,878042: a diferença de 0,000775 é pequena e não "
+                      "estabelece superioridade estatística. Desvios, erros por classe, gap "
+                      "treino–validação e custo constam das tabelas e figuras abaixo. " + selecao["limite"]])
         adicionar("markdown", "resultado-registrado", "\n".join(texto))
     adicionar("code", "ambiente", '''
 import json, os, subprocess, sys
@@ -254,6 +260,12 @@ O treino integral do pipeline para submissão, inferência no teste, explicabili
 acadêmico final pertencem a etapas futuras. Permanecem pendentes a proveniência dos três
 sinais excluídos e o significado de `su_attempted=2`. Os resultados são específicos desta base,
 semente e orçamento; não demonstram desempenho sobre tráfego contemporâneo.
+
+**Declaração de uso de IA generativa.** O Codex auxiliou na organização do código,
+na construção do notebook, na execução dos experimentos, na conferência dos registros
+e na redação técnica. Os dados, parâmetros, métricas e limitações apresentados são
+verificáveis pelas células e pelos resultados registrados; a equipe é responsável pela
+revisão e interpretação acadêmica do trabalho.
 """)
     notebook = {"cells": celulas, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                                                 "language_info": {"name": "python", "version": "3.12"}},
