@@ -99,6 +99,25 @@ Para sobreviver ao encerramento da sessão Colab, monte seu Drive e configure
 `NSLKDD_DESTINO` para uma pasta persistente **antes de executar**. O destino padrão
 fica no disco da sessão. Não publique essa pasta: ela contém índices e previsões por linha.
 """)
+    resumo_salvo = RAIZ / "output/stage3/resultados.json"
+    if resumo_salvo.exists():
+        registro = json.loads(resumo_salvo.read_text(encoding="utf-8"))
+        selecao = registro["selecao"]
+        texto = ["## Resultado da execução registrada na Fase 3", "",
+                 "Este resumo agregado foi incorporado ao notebook para permitir revisão sem novo treinamento. "
+                 "As células abaixo reproduzem a execução e geram suas próprias tabelas e gráficos.", "",
+                 f"Dados SHA-256: `{registro['sha256_dados']}`. "
+                 f"Tipo: `{registro['tipo_dados']}`; cinco folds externos e dois internos.", "",
+                 "| Comparação | F1-macro médio | Desvio | Precisão anomaly | Recall anomaly |",
+                 "| --- | ---: | ---: | ---: | ---: |"]
+        for r in registro["resumos"]:
+            texto.append(f"| {r['comparacao']} | {r['f1_macro_media']:.6f} | "
+                         f"{r['f1_macro_desvio']:.6f} | {r['precision_anomaly_media']:.6f} | "
+                         f"{r['recall_anomaly_media']:.6f} |")
+        texto.extend(["", f"**Pipeline recomendado:** `{selecao['configuracao_recomendada']}`. "
+                      "A escolha usa F1-macro; estabilidade, falsos positivos/negativos, gap e custo "
+                      "devem ser lidos nas tabelas completas geradas abaixo. " + selecao["limite"]])
+        adicionar("markdown", "resultado-registrado", "\n".join(texto))
     adicionar("code", "ambiente", '''
 import json, os, subprocess, sys
 from pathlib import Path
