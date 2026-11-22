@@ -9,8 +9,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from dados_etapa2 import preparar_base
 from stage3_evaluation import (CLASSES, CONFIGURACOES_REFERENCIA, Configuracao,
-                               calcular_metricas, executar_avaliacao, preparar_entrada)
+                               calcular_metricas, executar_avaliacao, preparar_entrada, hashes_fontes)
 
 
 # Cabecalho observado no treino fornecido, sem inferir atributos da fixture.
@@ -173,6 +174,75 @@ def consolidar(destino):
     }
 
 
+def verificar_registros(entrada, destino):
+    """Confere evidencias contra a base, incluindo grupos e escolhas internas."""
+    destino = Path(destino)
+    manifesto = json.loads((destino / "manifesto.json").read_text(encoding="utf-8"))
+    dados, digest, _ = preparar_entrada(entrada, manifesto["tipo_dados"])
+    if digest != manifesto["sha256_dados"] or hashes_fontes() != manifesto["fontes_sha256"]:
+        raise ValueError("Base ou fontes divergem do manifesto")
+    _, grupos = preparar_base(dados)
+    y = dados["class"].to_numpy()
+    registros = [json.loads(l) for l in (destino / "resultados.jsonl").read_text(encoding="utf-8").splitlines()]
+    configs = {c["nome"]: c for c in manifesto["configuracoes"]}
+    ordem = {n:i for i,n in enumerate(configs)}
+    cobertura = []
+    for d in manifesto["divisoes"]:
+        cobertura.extend(d["validacao"])
+        for par, universo in [(d, list(range(len(dados)))),
+                              *[(i, d["ajuste"]) for i in d["internas"]]]:
+            a, v = par["ajuste"], par["validacao"]
+            if sorted(a+v) != sorted(universo) or set(a) & set(v):
+                raise ValueError("Indices de treino/validacao nao formam a particao esperada")
+            if set(grupos.iloc[a]) & set(grupos.iloc[v]):
+                raise ValueError("Grupos sobrepostos nos registros")
+    if sorted(cobertura) != list(range(len(dados))):
+        raise ValueError("Cobertura externa incompleta")
+    rotulos = 0
+    for r in registros:
+        if "metricas" not in r:
+            continue
+        val = r["indices_validacao"]
+        if r["rotulos_reais"] != y[val].tolist():
+            raise ValueError("Rotulos persistidos divergem da base oficial/fixture")
+        nome = r["configuracao"]["nome"]
+        if r["configuracao"] != configs[nome]:
+            raise ValueError("Configuracao persistida diverge do manifesto")
+        rotulos += len(val)
+        cm = np.asarray(r["metricas"]["matriz"], dtype=float)
+        # Conferencia aritmetica independente da funcao calcular_metricas.
+        denominadores = cm.sum(axis=0) + cm.sum(axis=1)
+        f1 = np.divide(2*np.diag(cm), denominadores, out=np.zeros(2), where=denominadores!=0).mean()
+        if cm.sum() != len(val) or not np.isclose(f1, r["metricas"]["f1_macro"]):
+            raise ValueError("Matriz e F1 inconsistentes")
+        if nome.startswith("mlp_") and len(r["perdas_treino"]) != r["configuracao"]["parametros"]["epocas"]:
+            raise ValueError("Numero de epocas MLP divergente")
+    # Confere que cada escolha externa usou somente as metricas internas daquele fold.
+    for d in manifesto["divisoes"]:
+        internas = [r for r in registros if r["fold_externo"]==d["fold"] and r["etapa"]=="selecao_interna"]
+        externas = [r for r in registros if r["fold_externo"]==d["fold"] and r["etapa"]=="avaliacao_externa"]
+        for comparacao, candidatas in manifesto["comparacoes"].items():
+            aptas = []
+            for nome in candidatas:
+                tentativas = [r for r in internas if r["configuracao"]["nome"]==nome]
+                if len(tentativas)!=manifesto["internas"]:
+                    raise ValueError("Folds internos incompletos")
+                if all(r["elegivel"] for r in tentativas):
+                    aptas.append((np.mean([r["metricas"]["f1_macro"] for r in tentativas]),
+                                  np.mean([r["metricas"]["por_classe"]["anomaly"]["recall"] for r in tentativas]),
+                                  -ordem[nome], nome))
+            escolhas = [r for r in externas if comparacao in r.get("comparacoes", [r.get("comparacao")])]
+            if len(escolhas)!=1:
+                raise ValueError("Comparacao externa incompleta ou duplicada")
+            esperado = max(aptas)[3] if aptas else None
+            if escolhas[0].get("configuracao",{}).get("nome") != esperado:
+                raise ValueError("Escolha externa diverge da selecao interna")
+    consolidar(destino)  # Confere previsoes, metricas, indices e duplicatas internas.
+    return {"sha256_dados": digest, "ajustes": sum("metricas" in r for r in registros),
+            "rotulos_conferidos": rotulos, "grupos": int(grupos.nunique()),
+            "divisoes_externas": len(manifesto["divisoes"]), "validacao": "aprovada"}
+
+
 def gerar_relatorio(destino, saida):
     manifesto, folds, resumo, configuracoes, selecao = consolidar(destino)
     saida = Path(saida)
@@ -253,6 +323,8 @@ def main():
         if sha256(Path(args.dados).read_bytes()).hexdigest()!=diagnostico["sha256"]:
             raise RuntimeError("Arquivo de entrada foi alterado durante a execucao")
         (Path(args.destino)/"base_verificada.json").write_text(json.dumps(diagnostico,indent=2),encoding="utf-8")
+    verificacao=verificar_registros(args.dados,args.destino)
+    (Path(args.destino)/"verificacao.json").write_text(json.dumps(verificacao,indent=2),encoding="utf-8")
     _,resumo,_,selecao=gerar_relatorio(args.destino,args.saida)
     print(resumo[["comparacao","f1_macro_media","f1_macro_desvio","elegivel"]].to_string(index=False))
     print(json.dumps(selecao,ensure_ascii=False,indent=2))

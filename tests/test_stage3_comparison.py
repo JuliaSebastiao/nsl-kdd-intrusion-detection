@@ -9,8 +9,8 @@ import unittest
 import numpy as np
 
 from test_stage3_evaluation import fixture
-from stage3_evaluation import Configuracao, avaliar_divisao, executar_avaliacao, planejar_divisoes
-from stage3_comparison import consolidar, gerar_relatorio, plano_experimentos, verificar_base
+from stage3_evaluation import Configuracao, avaliar_divisao, calcular_metricas, executar_avaliacao, planejar_divisoes
+from stage3_comparison import consolidar, gerar_relatorio, plano_experimentos, verificar_base, verificar_registros
 
 
 class ComparacaoTest(unittest.TestCase):
@@ -125,6 +125,20 @@ class ComparacaoTest(unittest.TestCase):
             texto=json.dumps(publico)
             for chave in ("indices_validacao", "rotulos_reais", "previsoes"):
                 self.assertNotIn(chave,texto)
+
+    def test_verificacao_confronta_rotulos_com_a_fonte(self):
+        with tempfile.TemporaryDirectory() as p:
+            destino=Path(p)/"run"
+            self.executar(destino)
+            self.assertEqual(verificar_registros(fixture(),destino)["ajustes"],9)
+            arquivo=destino/"resultados.jsonl"
+            registros=[json.loads(l) for l in arquivo.read_text(encoding="utf-8").splitlines()]
+            r=registros[0]
+            r["rotulos_reais"][0]="anomaly" if r["rotulos_reais"][0]=="normal" else "normal"
+            r["metricas"]=calcular_metricas(r["rotulos_reais"],r["previsoes"])
+            arquivo.write_text("".join(json.dumps(r)+"\n" for r in registros),encoding="utf-8")
+            with self.assertRaisesRegex(ValueError,"Rotulos persistidos"):
+                verificar_registros(fixture(),destino)
 
 
 if __name__=="__main__":
