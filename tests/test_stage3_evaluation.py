@@ -81,14 +81,14 @@ class PreparoTest(unittest.TestCase):
 
     def test_knn_coluna_vazia_nao_usa_validacao(self):
         treino = pd.DataFrame({"vazia": [np.nan] * 5,
-                               "observada": [1., 2., 3., 4., 5.]})
-        validacao = pd.DataFrame({"vazia": [1000., np.nan],
-                                  "observada": [2., np.nan]})
+                               "observada": [1., 2., np.inf, 4., 5.]})
+        validacao = pd.DataFrame({"vazia": [1000., np.nan, np.inf],
+                                  "observada": [2., np.nan, np.inf]})
         original = validacao.copy(deep=True)
         for escala in ("zscore", "minmax", "robusta", "nenhuma"):
             x_tr, x_val = transformar_numericas(treino, validacao, "knn", escala)
             self.assertEqual(x_tr.shape, (5, 2))
-            self.assertEqual(x_val.shape, (2, 2))
+            self.assertEqual(x_val.shape, (3, 2))
             self.assertTrue(np.isfinite(x_tr).all())
             self.assertTrue(np.isfinite(x_val).all())
             self.assertTrue((x_tr[:, 0] == 0).all())
@@ -169,6 +169,11 @@ class ProtocoloTest(unittest.TestCase):
         somente_normal = calcular_metricas(["normal", "normal"], ["normal", "normal"])
         self.assertEqual(somente_normal["matriz"], [[2, 0], [0, 0]])
         self.assertAlmostEqual(somente_normal["f1_macro"], 0.5)
+        real_publicado = ["normal"] * 13095 + ["anomaly"] * 788
+        previsao_publicada = (["normal"] * 12926 + ["anomaly"] * 169
+                               + ["normal"] * 218 + ["anomaly"] * 570)
+        self.assertAlmostEqual(calcular_metricas(real_publicado, previsao_publicada)["f1_macro"],
+                               0.865906, places=5)
 
     def test_nao_convergido_inelegivel_mesmo_com_metricas(self):
         class SVMIncompleta:
@@ -211,6 +216,38 @@ class ProtocoloTest(unittest.TestCase):
             self.assertEqual(externas[0]["metricas"],
                              calcular_metricas(dados["class"].to_numpy()[externas[0]["indices_validacao"]],
                                               externas[0]["previsoes"]))
+
+    def test_familias_cpu_compartilham_contrato_de_metricas(self):
+        dados = fixture()
+        x, y, _, plano = planejar_divisoes(dados, internas=2)
+        _, treino, val, _ = plano[0]
+        for familia in ("svm_linear", "svm_rbf", "mlp_pequena", "mlp_profunda"):
+            parametros = {"epocas": 2} if familia.startswith("mlp_") else {}
+            config = Configuracao(familia, familia, parametros,
+                                  balanceamento="over_0_5" if familia.startswith("mlp_") else "nenhum")
+            with self.subTest(familia=familia):
+                resultado = avaliar_divisao(x, y, treino, val, config)
+                self.assertEqual(resultado["linhas_validacao"], len(val))
+                self.assertEqual(len(resultado["previsoes"]), len(val))
+                self.assertEqual(sum(map(sum, resultado["metricas"]["matriz"])), len(val))
+                self.assertIn("status_convergencia", resultado)
+
+    def test_selecao_ignora_configuracao_sem_convergencia(self):
+        class SVMIncompleta:
+            fit_status_ = 1
+            def fit(self, x, y):
+                return self
+            def predict(self, x):
+                return np.array(["normal"] * len(x))
+        with tempfile.TemporaryDirectory() as pasta:
+            _, linhas = executar_avaliacao(
+                fixture(), [Configuracao("falha", "svm_rbf")], Path(pasta) / "rodada",
+                tipo_dados="synthetic_test", externas=3, internas=2,
+                fabrica=lambda _: SVMIncompleta())
+            externas = [r for r in linhas if r["etapa"] == "avaliacao_externa"]
+            self.assertEqual(len(externas), 3)
+            self.assertTrue(all(r["status"] == "sem_configuracao_elegivel" for r in externas))
+            self.assertTrue(all(not r["elegivel"] for r in linhas if r["etapa"] == "selecao_interna"))
 
     def test_tipo_oficial_exige_arquivo_de_treino(self):
         with self.assertRaises(ValueError):
