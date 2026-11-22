@@ -166,9 +166,17 @@ if DATA_PATH is None:
     except ImportError:
         raise FileNotFoundError("Disponibilize data/raw/treino.csv ou configure NSLKDD_TREINO.")
     enviados = files.upload()
-    if set(enviados) != {"treino.csv"}:
-        raise ValueError("Selecione somente o treino.csv oficial da professora.")
-    DATA_PATH = Path("treino.csv").resolve()
+    import re
+    if len(enviados) != 1 or not re.fullmatch(r"treino(?: \\(\\d+\\))?\\.csv", next(iter(enviados))):
+        raise ValueError("Selecione somente o treino.csv oficial (também aceita treino (1).csv).")
+    DATA_PATH = Path(next(iter(enviados))).resolve()
+if DATA_PATH.name != "treino.csv":
+    # Downloads repetidos podem acrescentar (1); a copia preserva todos os bytes.
+    entrada = BASE / "entrada"
+    entrada.mkdir(exist_ok=True)
+    copia = entrada / "treino.csv"
+    copia.write_bytes(DATA_PATH.read_bytes())
+    DATA_PATH = copia
 codigo = "from stage3_comparison import verificar_base; import json,sys; print(json.dumps(verificar_base(sys.argv[1])))"
 r = subprocess.run([sys.executable, "-c", codigo, str(DATA_PATH)], env=AMBIENTE, check=True, capture_output=True, text=True)
 diagnostico = json.loads(r.stdout)
