@@ -10,7 +10,7 @@ import numpy as np
 
 from test_stage3_evaluation import fixture
 from stage3_evaluation import Configuracao, avaliar_divisao, executar_avaliacao, planejar_divisoes
-from stage3_comparison import consolidar, plano_experimentos, verificar_base
+from stage3_comparison import consolidar, gerar_relatorio, plano_experimentos, verificar_base
 
 
 class ComparacaoTest(unittest.TestCase):
@@ -109,6 +109,22 @@ class ComparacaoTest(unittest.TestCase):
             fixture().to_csv(arquivo,index=False)
             with self.assertRaisesRegex(ValueError,"Esquema diferente"):
                 verificar_base(arquivo)
+
+    def test_relatorio_separa_agregados_de_registros_privados(self):
+        with tempfile.TemporaryDirectory() as p:
+            destino=Path(p)/"run"
+            self.executar(destino,comparacoes={"Random Forest":["rf"],"preparo:referencia":["rf"]})
+            saida=destino/"resumo"
+            gerar_relatorio(destino,saida)
+            publico=json.loads((saida/"resultados.json").read_text(encoding="utf-8"))
+            self.assertEqual(publico["tipo_dados"],"synthetic_test")
+            self.assertNotIn("divisoes",publico)
+            self.assertNotIn("origem",publico)
+            self.assertEqual(len(list(saida.glob("*.png"))),5)
+            self.assertEqual(len(list(saida.glob("*.csv"))),3)
+            texto=json.dumps(publico)
+            for chave in ("indices_validacao", "rotulos_reais", "previsoes"):
+                self.assertNotIn(chave,texto)
 
 
 if __name__=="__main__":
