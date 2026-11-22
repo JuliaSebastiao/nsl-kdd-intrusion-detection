@@ -9,8 +9,8 @@ from dados_etapa2 import NOMINAIS, SEMENTE, escolher_linhas
 
 
 def transformar_numericas(treino, validacao, metodo, escala):
-    treino = treino.to_numpy(dtype=np.float64, na_value=np.nan)
-    validacao = validacao.to_numpy(dtype=np.float64, na_value=np.nan)
+    treino = treino.to_numpy(dtype=np.float64, na_value=np.nan).copy()
+    validacao = validacao.to_numpy(dtype=np.float64, na_value=np.nan).copy()
     # Uma entrada sem observacoes no ajuste recebe zero em ambas as parcelas.
     # Valores observados apenas na validacao nao participam do ajuste do KNN.
     if metodo == "knn":
@@ -54,7 +54,8 @@ def transformar_categoricas(treino, validacao, metodo, codificacao):
         # A moda nao existe quando toda a coluna do ajuste esta ausente.
         # Nesse caso a categoria explicita mantem a posicao da coluna.
         estrategia_coluna = "constant" if pd.isna(valores_treino).all() else estrategia
-        imputador = SimpleImputer(strategy=estrategia_coluna, fill_value="__ausente__")
+        imputador = SimpleImputer(strategy=estrategia_coluna, fill_value="__ausente__",
+                                 keep_empty_features=True)
         colunas_treino.append(imputador.fit_transform(valores_treino))
         colunas_validacao.append(imputador.transform(valores_validacao))
     treino = np.column_stack(colunas_treino)
