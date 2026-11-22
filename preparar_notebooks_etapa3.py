@@ -95,7 +95,7 @@ com `class` como alvo (`normal` ou `anomaly`). A base contém 69.833 registros e
 as contagens e o esquema são conferidos novamente na execução. F1-macro é o critério
 principal, com classes na ordem **normal, anomaly**. O teste sem rótulos não é usado.
 
-Os resultados históricos de `DECISOES.md` (incluindo escolha antiga de épocas e RF ≈ 0,8744)
+Resultados históricos exploratórios (incluindo escolha antiga de épocas e RF ≈ 0,8744)
 são referências de outro protocolo e não entram nas médias desta execução.
 A quinta divisão histórica foi reutilizada: nenhum resultado aqui é chamado de teste intocado.
 
