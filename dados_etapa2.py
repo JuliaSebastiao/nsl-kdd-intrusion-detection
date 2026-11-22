@@ -1,4 +1,4 @@
-"""Prepara??o determin?stica e divis?es agrupadas das etapas 2 e 3."""
+"""Prepara os dados e cria divisoes agrupadas para as etapas 2 e 3."""
 
 import numpy as np
 import pandas as pd
