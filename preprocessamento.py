@@ -245,9 +245,9 @@ def verificar_redundancias(dados: pd.DataFrame) -> pd.DataFrame:
                        "redundancia_comprovada": bool(comparaveis.any() and iguais.all())})
     if {"protocolo_cod", "protocol_type"}.issubset(dados):
         pares = dados[["protocol_type", "protocolo_cod"]].dropna()
-        deterministica = pares.groupby("protocol_type").protocolo_cod.nunique().le(1).all()
+        deterministica = bool(not pares.empty and pares.groupby("protocol_type").protocolo_cod.nunique().le(1).all())
         linhas.append({"atributo": "protocolo_cod", "relacao_testada": "codificação determinística de protocol_type",
                        "linhas_comparaveis": len(pares), "correspondencias": len(pares) if deterministica else 0,
-                       "percentual_correspondencia": 100.0 if deterministica else 0.0,
+                        "percentual_correspondencia": 100.0 if deterministica else (0.0 if len(pares) else np.nan),
                        "redundancia_comprovada": bool(deterministica)})
     return pd.DataFrame(linhas)
