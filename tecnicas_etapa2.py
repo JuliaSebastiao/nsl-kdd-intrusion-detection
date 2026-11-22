@@ -11,6 +11,8 @@ from dados_etapa2 import NOMINAIS, SEMENTE, escolher_linhas
 def transformar_numericas(treino, validacao, metodo, escala):
     treino = treino.to_numpy(dtype=np.float64, na_value=np.nan).copy()
     validacao = validacao.to_numpy(dtype=np.float64, na_value=np.nan).copy()
+    treino[~np.isfinite(treino)] = np.nan
+    validacao[~np.isfinite(validacao)] = np.nan
     # Uma entrada sem observacoes no ajuste recebe zero em ambas as parcelas.
     # Valores observados apenas na validacao nao participam do ajuste do KNN.
     if metodo == "knn":
