@@ -94,11 +94,11 @@ O [notebook de deep learning](03_deep_learning_colab.ipynb) treina uma candidata
 
 ## Etapa 3 — Comparação reproduzível
 
-As correções de pré-processamento e o protocolo de seleção interna/avaliação externa por grupos estão em `dados_etapa2.py`, `tecnicas_etapa2.py` e `stage3_evaluation.py`. Os notebooks do Colab incorporam cópias geradas dessas fontes e continuam independentes. Consulte [ambiente, testes e metodologia da Fase 2](docs/STAGE3_PHASE2.md) para reproduzir as verificações e entender a limitação histórica da quinta divisão.
+As correções de pré-processamento e o protocolo de seleção interna/avaliação externa por grupos estão em `dados_etapa2.py`, `tecnicas_etapa2.py` e `stage3_evaluation.py`. Os notebooks do Colab incorporam cópias geradas dessas fontes e continuam independentes. A quinta divisão histórica já foi consultada no desenvolvimento e não constitui teste intocado.
 
 Use Python 3.12 e `requirements-stage3-report.txt` para executar a comparação completa, gerar gráficos e validar o notebook. Esse arquivo inclui as dependências CPU. PyTorch e cuML são opcionais e ficam fora do orçamento desta comparação.
 
-Abra [03_comparacao_modelos_colab.ipynb](03_comparacao_modelos_colab.ipynb) por upload no Colab e execute todas as células. Ele incorpora os módulos necessários, verifica as versões e solicita somente `treino.csv`. São 15 candidatos, cinco divisões externas e duas internas, sem reduzir a base oficial. Os resultados da Fase 3 e as limitações da seleção estão em [docs/STAGE3_PHASE3.md](docs/STAGE3_PHASE3.md).
+Abra [03_comparacao_modelos_colab.ipynb](03_comparacao_modelos_colab.ipynb) por upload no Colab e execute todas as células. Ele incorpora os módulos necessários, verifica as versões e solicita somente `treino.csv`. São 15 candidatos, cinco divisões externas e duas internas, sem reduzir a base oficial. A comparação e suas limitações estão no notebook e nos [resultados agregados](output/stage3/resultados.json).
 
 Para executar localmente, com a base em `data/raw/treino.csv`:
 
