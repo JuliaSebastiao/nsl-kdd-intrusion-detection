@@ -249,6 +249,23 @@ class ProtocoloTest(unittest.TestCase):
             self.assertTrue(all(r["status"] == "sem_configuracao_elegivel" for r in externas))
             self.assertTrue(all(not r["elegivel"] for r in linhas if r["etapa"] == "selecao_interna"))
 
+    def test_empate_preserva_ordem_das_configuracoes(self):
+        class ModeloConstante:
+            def fit(self, x, y):
+                return self
+            def predict(self, x):
+                return np.array(["normal"] * len(x))
+        configuracoes = [Configuracao("primeira", "random_forest"),
+                         Configuracao("segunda", "random_forest")]
+        with tempfile.TemporaryDirectory() as pasta:
+            _, linhas = executar_avaliacao(
+                fixture(), configuracoes, Path(pasta) / "rodada",
+                tipo_dados="synthetic_test", externas=3, internas=2,
+                fabrica=lambda _: ModeloConstante())
+        externas = [r for r in linhas if r["etapa"] == "avaliacao_externa"]
+        self.assertEqual([r["configuracao"]["nome"] for r in externas],
+                         ["primeira"] * 3)
+
     def test_tipo_oficial_exige_arquivo_de_treino(self):
         with self.assertRaises(ValueError):
             preparar_entrada(fixture(), "official_training")
