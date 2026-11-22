@@ -1,0 +1,9 @@
+# Python 3.12. Conjunto CPU utilizado para validar a infraestrutura da Etapa 3.
+numpy==2.5.4
+pandas==3.0.1
+scipy==1.18.1
+scikit-learn==1.7.2
+imbalanced-learn==0.14.1
+joblib==1.6.0
+threadpoolctl==3.8.0
+sklearn-compat==0.1.6
