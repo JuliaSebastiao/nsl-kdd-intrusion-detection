@@ -79,3 +79,15 @@ Nenhum modelo é treinado, nenhuma técnica de balanceamento é aplicada e nenhu
 No [Google Colab](https://colab.research.google.com/), use **Arquivo → Fazer upload de notebook** para abrir [02_preprocessamento_colab.ipynb](02_preprocessamento_colab.ipynb). Escolha **Ambiente de execução → Executar tudo** e forneça o `treino.csv` oficial do Canvas quando solicitado. A execução instala as bibliotecas necessárias em um ambiente separado quando as versões são diferentes. O notebook inclui todo o código e usa apenas esse CSV. A preparação das dependências e os 137 ajustes levam alguns minutos em CPU.
 
 As tabelas mostram as alternativas de limpeza, imputação, codificação, escala, balanceamento e redução, além das combinações com árvore e rede neural. A validação usa divisões por grupo dentro do treino oficial. Os resultados e as justificativas de cada escolha estão em [DECISOES.md](DECISOES.md).
+
+## Etapa 3 — Experimento inicial com SVM
+
+O [notebook de SVM](03_svm_colab.ipynb) compara SVM linear e SVM com kernel RBF usando as divisões por grupo da Etapa 2. Abra no Colab, escolha **Executar tudo** e forneça o `treino.csv` oficial quando solicitado. O código executa em CPU. A variável `TRABALHADORES` permite rodar uma ou duas divisões em paralelo. Na validação local, a busca levou cerca de 11 minutos e a avaliação da quinta divisão levou mais cerca de 2 minutos.
+
+O [notebook de SVM RBF em CPU e CUDA](03_svm_cuda_colab.ipynb) compara as tolerâncias `1e-3` e `1e-4` sem teto explícito de iterações. No Colab, selecione uma GPU em **Alterar tipo de ambiente de execução** e depois use **Executar tudo**. O notebook ajusta a SVM RBF com cuML nas quatro primeiras divisões e mede a CPU na primeira delas por padrão. Na sessão sem GPU, a comparação de tolerâncias roda em CPU.
+
+O [notebook de Random Forest](03_random_forest_colab.ipynb) usa a mesma preparação e as mesmas divisões da SVM. Compara profundidade e ponderação de classes e apresenta a matriz de confusão e as métricas por classe na quinta divisão. No Colab, use **Executar tudo** e forneça o `treino.csv` oficial quando solicitado.
+
+O [notebook de redes neurais](03_redes_neurais_colab.ipynb) compara uma MLP com 16 neurônios em uma camada oculta e uma MLP com três camadas ocultas de 64, 32 e 16 neurônios. Cada rede treina 120 épocas por divisão. A retropropagação calcula os gradientes e o Adam atualiza os pesos. As tabelas incluem as épocas, métricas e matrizes de confusão. O notebook roda em CPU no Colab e pede apenas o `treino.csv` oficial.
+
+O [notebook de deep learning](03_deep_learning_colab.ipynb) treina uma candidata em PyTorch com quatro camadas ocultas e dropout. Ele mostra o ciclo de retropropagação e Adam e executa 120 épocas por divisão. No Colab, selecione GPU para usar CUDA ou execute em CPU. O único arquivo de dados necessário é o `treino.csv` oficial.

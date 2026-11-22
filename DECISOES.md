@@ -82,6 +82,62 @@ A árvore com KNN, moda e códigos inteiros superou a referência em todas as qu
 
 O [notebook independente da Etapa 2](02_preprocessamento_colab.ipynb) reproduz as tabelas com o `treino.csv` oficial e grava os resultados por divisão durante a execução. Os resultados anteriores e o roteiro de comparação também estão em `temp/etapa2-comparacao/`, na cópia local. O ambiente utilizado tinha Python 3.12.14, pandas 3.0.1, NumPy 2.5.4, SciPy 1.18.1, scikit-learn 1.7.2 e imbalanced-learn 0.14.1.
 
+## Etapa 3 — avaliação inicial da SVM
+
+A SVM é candidata a terceiro algoritmo porque o notebook de Bagging da disciplina usa `SVC` como classificador base. A comparação inicial de SVM linear e RBF mantém a mesma preparação em todas as opções. Usamos a versão C, deduplicação de mesmo rótulo no ajuste, mediana, categoria explícita de ausência, one-hot completo e Z-score numérico. Comparamos diferentes valores de C e o efeito de pesar as classes. A escolha da configuração usa F1-macro nas quatro primeiras divisões. A quinta fica separada dessa busca.
+
+O [notebook de SVM](03_svm_colab.ipynb) roda em CPU e permite executar duas divisões em paralelo com joblib. A alternativa com CUDA envolve um ambiente NVIDIA compatível e uma comparação à parte com cuML.
+
+Entre as sete opções, o RBF com C igual a 10, gamma definido pela escala e sem pesos de classe foi a melhor SVM pelo F1-macro. Obteve média de 0,8506 nas quatro divisões e 0,8659 na quinta. A melhor linear, com C igual a 0,1, obteve 0,8013 e 0,8168. Aplicar pesos ao RBF com C igual a 10 elevou o recall médio de `anomaly` de 68,23% para 78,10%, mas reduziu o F1-macro médio para 0,8333.
+
+O ajuste mediano por divisão foi de 41,9 segundos no RBF escolhido e 3,7 segundos na melhor linear. A busca completa em CPU levou 11,4 minutos com duas divisões em paralelo, antes da avaliação na quinta divisão.
+
+Na avaliação pós-treino da SVM RBF, a quinta divisão tinha 13.883 registros, dos quais 788 eram anomalias. Das 788 anomalias, 570 foram detectadas e 218 passaram como normais. Entre os 13.095 registros normais, 169 foram classificados como anomalias. O recall de `anomaly` foi 72,34% e a precisão, 77,13%. O notebook da SVM apresenta a matriz e as métricas por classe. Essa é uma avaliação interna com rótulos conhecidos. As métricas do teste oficial dependem do gabarito da professora.
+
+O [experimento CPU/CUDA](03_svm_cuda_colab.ipynb) mantém o RBF com C igual a 10 e compara duas tolerâncias sem teto explícito de iterações. Na primeira divisão em CPU, a tolerância de 0,001 convergiu em 54.833 iterações e a de 0,0001 em 138.130. As 13.947 previsões foram idênticas, com F1-macro de 0,8465 nas duas execuções. Mantemos 0,001 como referência. A comparação em CUDA está preparada para Colab com GPU. Os tempos e resultados do cuML ainda precisam ser medidos em uma sessão compatível.
+
+## Etapa 3 — comparação com Random Forest
+
+A comparação planejada reúne quatro configurações de três famílias de classificadores. As configurações são SVM RBF, Random Forest, uma rede neural pequena e uma rede neural mais profunda. A árvore individual serviu como referência na Etapa 2. Para medir a diferença entre algoritmos, o [experimento do Random Forest](03_random_forest_colab.ipynb) usa a mesma versão C e a mesma preparação da SVM. O modelo segue o índice de Gini e a semente do exemplo da disciplina. Comparamos profundidade 12 e profundidade livre, ambas com e sem ponderação de classes, em florestas de 100 árvores.
+
+O Random Forest com profundidade livre e ponderação por amostra de cada árvore obteve o maior F1-macro médio, 0,8744, nas quatro divisões de comparação. A mesma configuração sem ponderação obteve 0,8596. A floresta selecionada alcançou F1-macro de 0,8818 na quinta divisão, recall de 80,20% e precisão de 75,42% em `anomaly`. Detectou 632 das 788 anomalias, com 206 falsos alarmes. Na mesma divisão, a SVM detectou 570 anomalias, com 169 falsos alarmes.
+
+## Etapa 3 — comparação inicial das redes com escolha de épocas
+
+Na comparação inicial, usamos uma MLP pequena, com 16 neurônios em uma camada oculta, e uma MLP profunda, com camadas de 64, 32 e 16 neurônios. Para as duas usamos a mesma configuração de treino, semente, preparação e oversampling de uma anomalia para dois registros normais. O número de épocas foi escolhido pelo F1-macro em uma validação agrupada dentro do treino de cada rodada. A quinta divisão usou a mediana arredondada das épocas escolhidas nas quatro rodadas, 30 para a pequena e 18 para a profunda.
+
+| Modelo | F1-macro médio nas quatro divisões | F1-macro na quinta divisão | Recall de anomaly na quinta | Precisão de anomaly na quinta |
+| --- | ---: | ---: | ---: | ---: |
+| Random Forest | 0,8744 | 0,8818 | 80,20% | 75,42% |
+| SVM RBF | 0,8506 | 0,8659 | 72,34% | 77,13% |
+| Rede pequena | 0,8474 | 0,8535 | 80,33% | 66,14% |
+| Rede profunda | 0,8420 | 0,8519 | 80,08% | 65,80% |
+
+A rede pequena teve F1-macro maior em três das quatro rodadas e na quinta divisão. Na quinta, usou 1.921 parâmetros, contra 10.241 da profunda. O Random Forest teve o melhor F1-macro da comparação. Detectou 632 anomalias e gerou 206 falsos alarmes na quinta divisão. A rede pequena detectou 633 anomalias e gerou 324 falsos alarmes. A comparação entre famílias mede os pipelines inteiros nas mesmas divisões, pois o oversampling foi usado nas redes. As métricas vieram da validação interna do treino oficial.
+
+## Etapa 3 — redes neurais com 120 épocas fixas
+
+O [notebook atualizado](03_redes_neurais_colab.ipynb) treina as duas redes por 120 épocas completas em cada uma das cinco divisões, sem parada antecipada. Usamos as mesmas arquiteturas, os mesmos dados de ajuste e a mesma preparação da comparação inicial. Em cada lote, a retropropagação calcula os gradientes da perda e o Adam atualiza os pesos. A avaliação de F1-macro ocorre depois da última época.
+
+| Rede | F1-macro médio anterior | F1-macro médio com 120 épocas | F1-macro anterior na quinta divisão | F1-macro com 120 épocas na quinta divisão | Recall de anomaly com 120 épocas na quinta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Pequena | 0,8474 | 0,8468 | 0,8535 | 0,8512 | 79,70% |
+| Profunda | 0,8420 | 0,8441 | 0,8519 | 0,8495 | 78,55% |
+
+A rede profunda ganhou 0,0021 na média das quatro rodadas, enquanto a rede pequena recuou 0,0006. Na quinta divisão, ambas ficaram cerca de 0,0024 abaixo do treino anterior. A rede pequena manteve o maior F1-macro entre as duas arquiteturas. O Random Forest continua com o maior F1-macro médio entre os modelos avaliados, 0,8744.
+
+## Etapa 3 — rede mais profunda com PyTorch
+
+O [notebook de deep learning](03_deep_learning_colab.ipynb) avalia uma candidata com quatro camadas ocultas de 128, 64, 32 e 16 neurônios. Usamos ReLU, dropout de 15% após as três primeiras camadas, entropia cruzada binária e Adam. A chamada `perda.backward()` calcula os gradientes e `adam.step()` atualiza os parâmetros. Mantivemos o pré-processamento das MLPs, o oversampling, as divisões e 120 épocas por ajuste. O notebook RNA da disciplina e os slides de retropropagação serviram de referência. A comparação mede configurações completas, pois a arquitetura, a regularização e a implementação variam.
+
+| Rede com 120 épocas | F1-macro médio nas quatro divisões | F1-macro na quinta | Recall de anomaly na quinta | Precisão de anomaly na quinta |
+| --- | ---: | ---: | ---: | ---: |
+| Pequena em scikit-learn | 0,8468 | 0,8512 | 79,70% | 65,83% |
+| Profunda em scikit-learn | 0,8441 | 0,8495 | 78,55% | 66,06% |
+| Profunda em PyTorch | 0,8514 | 0,8495 | 79,82% | 65,25% |
+
+A versão PyTorch ficou acima da profunda anterior nas quatro rodadas iniciais. Na quinta, detectou 629 de 788 anomalias e gerou 335 falsos alarmes. Em relação à profunda anterior, foram dez anomalias detectadas a mais e 17 falsos alarmes a mais, com F1-macro praticamente igual. Ela é a candidata para representar a rede profunda na tabela pelo F1-macro médio. O Random Forest segue na frente, com 0,8744 de média e 0,8818 na quinta divisão. O notebook foi validado com PyTorch 2.10.0 e CUDA 12.6 na RTX 2050. Em CPU, foi conferido o funcionamento com uma amostra de duas épocas.
+
 ## Questões ainda abertas
 
 - Confirmar a origem e a disponibilidade temporal de `score_ids_legado`, `tipo_alerta_soc` e `tempo_resposta_analista_min`. As três foram excluídas provisoriamente da referência inicial, com possibilidade de reavaliação se sua disponibilidade e origem forem esclarecidas. Associação com a classe é evidência descritiva, não prova de vazamento.
