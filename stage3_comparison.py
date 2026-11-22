@@ -182,7 +182,10 @@ def gerar_relatorio(destino, saida):
     configuracoes.to_csv(saida / "configuracoes_internas.csv", index=False)
     publico = {k:v for k,v in manifesto.items() if k not in ("origem", "divisoes")}
     publico.update(selecao=selecao, resumos=resumo.to_dict(orient="records"),
-                   numero_ajustes_internos=len(manifesto["configuracoes"])*manifesto["externas"]*manifesto["internas"])
+                   numero_ajustes_internos=len(manifesto["configuracoes"])*manifesto["externas"]*manifesto["internas"],
+                   numero_ajustes_externos=len(folds[["fold", "configuracao"]].drop_duplicates()),
+                   sha256_resultados_jsonl=sha256((Path(destino)/"resultados.jsonl").read_bytes()).hexdigest(),
+                   sha256_manifesto=sha256((Path(destino)/"manifesto.json").read_bytes()).hexdigest())
     (saida / "resultados.json").write_text(json.dumps(publico, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     import matplotlib
     matplotlib.use("Agg")
@@ -198,7 +201,7 @@ def gerar_relatorio(destino, saida):
 
     fig, ax = plt.subplots(figsize=(9, 4))
     ax.barh(familias.comparacao, familias.f1_macro_media, xerr=familias.f1_macro_desvio, capsize=4)
-    ax.set(xlabel="F1 macro (media e desvio amostral de 5 folds)", xlim=(0,1))
+    ax.set(xlabel=f"F1 macro (media e desvio amostral de {manifesto['externas']} folds)", xlim=(0,1))
     salvar(fig, "f1_algoritmos.png")
     fig, ax = plt.subplots(figsize=(9, 4))
     x = np.arange(len(familias))
