@@ -64,9 +64,12 @@ class PreparoTest(unittest.TestCase):
             if codificacao == "inteiros":
                 self.assertEqual(x_val[0, 0], -1)
                 self.assertEqual(x_val[1, 0], 0)
-            else:
+            elif codificacao == "onehot":
                 self.assertEqual(x_val[0, 0], 0)
                 self.assertEqual(x_val[1, 0], 1)
+            else:
+                # Com infrequent_if_exist, a categoria nova pode usar o grupo raro.
+                self.assertIn(x_val[0, 0], (0, 1))
         assert_frame_equal(validacao, original)
 
     def test_moda_regular_mantem_comportamento(self):
