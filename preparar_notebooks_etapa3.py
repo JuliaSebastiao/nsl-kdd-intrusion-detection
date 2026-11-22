@@ -84,7 +84,8 @@ def sincronizar_comparacao(*, check=False):
     adicionar("markdown", "introducao", """
 # Etapa 3 — Comparação dos classificadores NSL-KDD
 
-**Disciplina:** Inteligência Artificial · Ciência da Computação · PUC Minas  
+**Disciplina:** Inteligência Artificial · Ciência da Computação · PUC Minas
+
 **Equipe:** Trabalho Prático 3 (nomes dos integrantes a completar pela equipe).
 
 O objetivo é comparar classificadores de intrusão usando somente o **treino.csv oficial**,
