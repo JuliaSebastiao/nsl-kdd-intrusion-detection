@@ -274,6 +274,8 @@ def _commit():
 
 def preparar_entrada(entrada, tipo_dados):
     if tipo_dados == "official_training":
+        if not isinstance(entrada, (str, os.PathLike)):
+            raise ValueError("A origem oficial deve ser o caminho de treino.csv")
         caminho = Path(entrada)
         if caminho.name != "treino.csv":
             raise ValueError("A origem oficial deve ser treino.csv")
@@ -286,7 +288,7 @@ def preparar_entrada(entrada, tipo_dados):
         origem = "fixture_sintetica"
     else:
         raise ValueError("Informe treino.csv oficial ou DataFrame sintetico e tipo correspondente")
-    if "class" not in dados or not set(dados["class"].dropna()).issubset(CLASSES):
+    if dados.empty or "class" not in dados or dados["class"].isna().any() or not set(dados["class"]).issubset(CLASSES):
         raise ValueError("Alvo class invalido")
     return dados, digest, origem
 
@@ -295,7 +297,8 @@ def resultados_compativeis(primeiro, segundo):
     """Somente avaliacoes do mesmo CSV e dos mesmos indices podem ser pareadas."""
     chaves = ("tipo_dados", "sha256_dados", "protocolo_sha256", "fold_externo",
               "indices_validacao_sha256")
-    return all(primeiro.get(chave) == segundo.get(chave) for chave in chaves)
+    return all(chave in primeiro and chave in segundo and primeiro[chave] is not None
+               and primeiro[chave] == segundo[chave] for chave in chaves)
 
 
 def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
