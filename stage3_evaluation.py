@@ -333,6 +333,14 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
     }
     (destino / "manifesto.json").write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
     linhas = []
+    caminho_resultados = destino / "resultados.jsonl"
+    caminho_resultados.write_text("", encoding="utf-8")
+
+    def registrar(linha):
+        with caminho_resultados.open("a", encoding="utf-8") as arquivo:
+            arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
+        linhas.append(linha)
+
     for numero, treino, validacao, interno in plano:
         desempenho = []
         for config in configuracoes:
@@ -340,7 +348,7 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
             for indice, (ajuste, val_interna) in enumerate(interno, 1):
                 resultado = avaliar_divisao(x, y, ajuste, val_interna, config, fabrica=fabrica)
                 resultado.update(fold_externo=numero, fold_interno=indice, etapa="selecao_interna")
-                linhas.append(resultado)
+                registrar(resultado)
                 tentativas.append(resultado)
             if all(r["elegivel"] for r in tentativas):
                 desempenho.append((float(np.mean([r["metricas"]["f1_macro"] for r in tentativas])), config))
@@ -351,13 +359,10 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
                              tipo_dados=tipo_dados, sha256_dados=digest,
                              protocolo_sha256=protocolo_sha,
                              indices_validacao_sha256=_digest_indices(validacao))
-            linhas.append(resultado)
+            registrar(resultado)
         else:
-            linhas.append({"fold_externo": numero, "etapa": "avaliacao_externa",
-                          "status": "sem_configuracao_elegivel", "tipo_dados": tipo_dados,
-                          "sha256_dados": digest, "protocolo_sha256": protocolo_sha,
-                          "indices_validacao_sha256": _digest_indices(validacao)})
-    with (destino / "resultados.jsonl").open("w", encoding="utf-8") as arquivo:
-        for linha in linhas:
-            arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
+            registrar({"fold_externo": numero, "etapa": "avaliacao_externa",
+                       "status": "sem_configuracao_elegivel", "tipo_dados": tipo_dados,
+                       "sha256_dados": digest, "protocolo_sha256": protocolo_sha,
+                       "indices_validacao_sha256": _digest_indices(validacao)})
     return manifesto, linhas
