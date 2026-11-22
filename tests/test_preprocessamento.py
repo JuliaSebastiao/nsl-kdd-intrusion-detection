@@ -39,6 +39,14 @@ class DiagnosticoTest(unittest.TestCase):
         d = pd.DataFrame({"src_bytes":[1024.],"dst_bytes":[2048.],"same_srv_rate":[.5],"src_bytes_kb":[1.],"dst_bytes_kb":[2.],"total_bytes":[3072.],"same_srv_pct":[50.],"protocol_type":["tcp"],"protocolo_cod":[0],"class":["normal"]})
         self.assertTrue(verificar_redundancias(d)["redundancia_comprovada"].all())
 
+    def test_protocolo_sem_pares_nao_comprova_redundancia(self):
+        dados = pd.DataFrame({"protocol_type": [None, None],
+                              "protocolo_cod": [None, None]})
+        resultado = verificar_redundancias(dados).iloc[0]
+        self.assertEqual(resultado["linhas_comparaveis"], 0)
+        self.assertFalse(resultado["redundancia_comprovada"])
+        self.assertTrue(pd.isna(resultado["percentual_correspondencia"]))
+
     def test_faixa_indicativa_nao_e_apresentada_como_violacao_de_dominio(self):
         dominios = analisar_violacoes_dominio(self.dados)
         referencias = analisar_faixas_referencia(self.dados).set_index("atributo")
