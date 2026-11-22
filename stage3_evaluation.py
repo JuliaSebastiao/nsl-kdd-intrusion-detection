@@ -16,9 +16,11 @@ import sys
 from time import perf_counter
 
 from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.neural_network import MLPClassifier
@@ -44,6 +46,8 @@ class Configuracao:
     codificacao: str = "onehot"
     escala: str = "zscore"
     balanceamento: str = "nenhum"
+    representacao: str = "C"
+    reducao: str = "nenhuma"
 
 
 CONFIGURACOES_REFERENCIA = (
@@ -103,6 +107,8 @@ class _MLPExistente:
         for _ in range(self.epocas):
             self.modelo.partial_fit(x.astype(np.float32), rotulos, classes=[0, 1])
         self.epocas_concluidas_ = len(self.modelo.loss_curve_)
+        if not np.isfinite(self.modelo.loss_curve_).all():
+            raise ValueError("Perdas MLP nao finitas")
         return self
 
     def predict(self, x):
@@ -213,6 +219,8 @@ def calcular_metricas(y_real, y_previsto):
     return {
         "f1_macro": float(f1_score(real, previsto, labels=CLASSES, average="macro", zero_division=0)),
         "acuracia": float(accuracy_score(real, previsto)),
+        "precisao_macro": float(relatorio["macro avg"]["precision"]),
+        "recall_macro": float(relatorio["macro avg"]["recall"]),
         "matriz": confusion_matrix(real, previsto, labels=CLASSES).tolist(),
         "por_classe": {classe: {chave: float(relatorio[classe][chave])
                                  for chave in ("precision", "recall", "f1-score", "support")}
@@ -228,12 +236,20 @@ def avaliar_divisao(x, y, ajuste, validacao, config, *, fabrica=criar_modelo):
         raise ValueError("Ajuste e validacao se sobrepoem")
     inicio = perf_counter()
     x_tr, x_val, y_tr = transformar(x, y, ajuste, validacao, config)
+    if config.reducao == "pca60":
+        redutor = PCA(n_components=min(60, x_tr.shape[1], len(x_tr)),
+                      svd_solver="full", random_state=SEMENTE)
+        x_tr, x_val = redutor.fit_transform(x_tr), redutor.transform(x_val)
+    elif config.reducao != "nenhuma":
+        raise ValueError(f"Reducao desconhecida: {config.reducao}")
     segundos_preparo = perf_counter() - inicio
     if not np.isfinite(x_tr).all() or not np.isfinite(x_val).all():
         raise ValueError("Transformacao produziu valores nao finitos")
     x_treino_original, y_treino_original = x_tr, y_tr
     if config.balanceamento == "over_0_5":
         x_tr, y_tr = RandomOverSampler(sampling_strategy=0.5, random_state=SEMENTE).fit_resample(x_tr, y_tr)
+    elif config.balanceamento == "under_0_5":
+        x_tr, y_tr = RandomUnderSampler(sampling_strategy=0.5, random_state=SEMENTE).fit_resample(x_tr, y_tr)
     elif config.balanceamento != "nenhum":
         raise ValueError(f"Balanceamento desconhecido: {config.balanceamento}")
     modelo = fabrica(config)
@@ -253,6 +269,10 @@ def avaliar_divisao(x, y, ajuste, validacao, config, *, fabrica=criar_modelo):
         "linhas_ajuste": int(len(y_tr)), "linhas_validacao": int(len(validacao)),
         "colunas": int(x_tr.shape[1]), "indices_validacao": validacao.tolist(),
         "previsoes": np.asarray(previsto).tolist(),
+        "rotulos_reais": np.asarray(y[validacao]).tolist(),
+        "linhas_antes_amostragem": int(len(y_treino_original)),
+        "classes_ajuste": {c: int(np.sum(y_tr == c)) for c in CLASSES},
+        "perdas_treino": [float(v) for v in getattr(getattr(modelo, "modelo", None), "loss_curve_", [])],
         "tempos_s": {"preparo": segundos_preparo, "ajuste": segundos_ajuste,
                      "previsao": segundos_previsao},
     }
@@ -272,6 +292,35 @@ def _commit():
     resposta = subprocess.run(["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent,
                               capture_output=True, text=True)
     return resposta.stdout.strip() if resposta.returncode == 0 else None
+
+
+def hashes_fontes():
+    return {nome: sha256(Path(__file__).with_name(nome).read_bytes()).hexdigest()
+            for nome in ("stage3_evaluation.py", "dados_etapa2.py", "tecnicas_etapa2.py")}
+
+
+def _chave_resultado(r):
+    return (r["etapa"], r["fold_externo"], r.get("fold_interno"),
+            r.get("configuracao", {}).get("nome", r.get("comparacao")))
+
+
+def _ler_registros(caminho):
+    """Tolera somente a ultima linha incompleta apos interrupcao da escrita."""
+    dados = caminho.read_bytes()
+    fim = dados.rfind(b"\n") + 1
+    if fim < len(dados):
+        # Preserva o fragmento para diagnostico antes de retirar o registro parcial.
+        caminho.with_suffix(".partial").write_bytes(dados[fim:])
+        with caminho.open("r+b") as arquivo:
+            arquivo.truncate(fim)
+    linhas = [json.loads(l) for l in dados[:fim].splitlines()]
+    chaves = [_chave_resultado(r) for r in linhas]
+    if len(chaves) != len(set(chaves)):
+        raise ValueError("Resultados duplicados no checkpoint")
+    for r in linhas:
+        if "metricas" in r and calcular_metricas(r["rotulos_reais"], r["previsoes"]) != r["metricas"]:
+            raise ValueError("Metricas persistidas inconsistentes com as previsoes")
+    return linhas
 
 
 def preparar_entrada(entrada, tipo_dados):
@@ -304,7 +353,8 @@ def resultados_compativeis(primeiro, segundo):
 
 
 def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
-                      externas=5, internas=3, semente=SEMENTE, fabrica=criar_modelo):
+                      externas=5, internas=3, semente=SEMENTE, fabrica=criar_modelo,
+                      comparacoes=None, retomar=False):
     """Seleciona por folds internos e avalia cada escolha no fold externo.
 
     O chamador deve guardar destino fora do Git (por exemplo temp/stage3_runs).
@@ -313,9 +363,18 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
     dados, digest, origem = preparar_entrada(entrada, tipo_dados)
     x, y, grupos, plano = planejar_divisoes(dados, externas=externas, internas=internas,
                                             semente=semente)
+    if tipo_dados == "official_training":
+        for _, treino, validacao, interno in plano:
+            for a, v in [(treino, validacao), *interno]:
+                if set(y[a]) != set(CLASSES) or set(y[v]) != set(CLASSES):
+                    raise ValueError("Cada parcela oficial precisa conter ambas as classes")
     nomes = [c.nome for c in configuracoes]
     if not nomes or len(nomes) != len(set(nomes)):
         raise ValueError("Forneca configuracoes com nomes unicos")
+    comparacoes = comparacoes or {"selecao": nomes}
+    if any(not ns or not set(ns).issubset(nomes) for ns in comparacoes.values()):
+        raise ValueError("Comparacoes devem referenciar configuracoes existentes")
+    representacoes, _ = preparar_base(dados)
     identificadores = [
         {"fold": numero, "ajuste": treino.tolist(), "validacao": validacao.tolist(),
          "internas": [{"ajuste": a.tolist(), "validacao": v.tolist()} for a, v in interno]}
@@ -323,7 +382,6 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
     ]
     protocolo_sha = sha256(json.dumps(identificadores, sort_keys=True).encode()).hexdigest()
     destino = Path(destino)
-    destino.mkdir(parents=True, exist_ok=False)
     manifesto = {
         "tipo_dados": tipo_dados, "origem": origem, "sha256_dados": digest,
         "protocolo_sha256": protocolo_sha, "metodo": "StratifiedGroupKFold_aninhado",
@@ -333,25 +391,62 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
         "classes": CLASSES, "configuracoes": [asdict(c) for c in configuracoes],
         "divisoes": identificadores, "versoes": _versoes(),
         "python": sys.version, "plataforma": platform.platform(), "commit": _commit(),
+        "fontes_sha256": hashes_fontes(), "comparacoes": comparacoes,
+        "formato": 2, "cpu": platform.processor(), "threads_numericas": 1,
     }
-    (destino / "manifesto.json").write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
-    linhas = []
+    # JSON normaliza tuplas antes da comparacao com o manifesto persistido.
+    manifesto = json.loads(json.dumps(manifesto))
     caminho_resultados = destino / "resultados.jsonl"
-    caminho_resultados.write_text("", encoding="utf-8")
+    if retomar and (destino / "manifesto.json").exists():
+        anterior = json.loads((destino / "manifesto.json").read_text(encoding="utf-8"))
+        campos = ("tipo_dados", "sha256_dados", "protocolo_sha256", "configuracoes",
+                  "versoes", "python", "plataforma", "fontes_sha256", "comparacoes", "formato")
+        if any(anterior.get(k) != manifesto[k] for k in campos):
+            raise ValueError("Retomada incompativel: dados, codigo, ambiente ou configuracoes mudaram")
+        manifesto = anterior
+        linhas = _ler_registros(caminho_resultados)
+    else:
+        destino.mkdir(parents=True, exist_ok=False)
+        (destino / "manifesto.json").write_text(json.dumps(manifesto, ensure_ascii=False, indent=2), encoding="utf-8")
+        caminho_resultados.write_text("", encoding="utf-8")
+        linhas = []
+    cache = {_chave_resultado(r): r for r in linhas}
 
     def registrar(linha):
         with caminho_resultados.open("a", encoding="utf-8") as arquivo:
             arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
+            arquivo.flush()
+            os.fsync(arquivo.fileno())
         linhas.append(linha)
+        cache[_chave_resultado(linha)] = linha
+
+    def medir(config, numero, indice, ajuste, val, etapa, **extra):
+        chave = (etapa, numero, indice, config.nome)
+        if chave in cache:
+            salvo = cache[chave]
+            if salvo["indices_validacao"] != val.tolist() or salvo["rotulos_reais"] != y[val].tolist():
+                raise ValueError("Checkpoint com indices ou rotulos incompatíveis")
+            return salvo
+        from threadpoolctl import threadpool_limits
+        with threadpool_limits(limits=1):
+            resultado = avaliar_divisao(representacoes[config.representacao], y, ajuste, val,
+                                       config, fabrica=fabrica)
+        resultado.update(fold_externo=numero, fold_interno=indice, etapa=etapa,
+                         tipo_dados=tipo_dados, sha256_dados=digest,
+                         protocolo_sha256=protocolo_sha,
+                         indices_validacao_sha256=_digest_indices(val), **extra)
+        registrar(resultado)
+        print(f"{etapa} {numero}/{indice} {config.nome}: "
+              f"F1={resultado['metricas']['f1_macro']:.6f}; "
+              f"elegivel={resultado['elegivel']}", flush=True)
+        return resultado
 
     for numero, treino, validacao, interno in plano:
         desempenho = []
         for ordem, config in enumerate(configuracoes):
             tentativas = []
             for indice, (ajuste, val_interna) in enumerate(interno, 1):
-                resultado = avaliar_divisao(x, y, ajuste, val_interna, config, fabrica=fabrica)
-                resultado.update(fold_externo=numero, fold_interno=indice, etapa="selecao_interna")
-                registrar(resultado)
+                resultado = medir(config, numero, indice, ajuste, val_interna, "selecao_interna")
                 tentativas.append(resultado)
             if all(r["elegivel"] for r in tentativas):
                 desempenho.append((
@@ -360,17 +455,21 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
                                    for r in tentativas])),
                     -ordem, config,
                 ))
-        if desempenho:
-            _, _, _, escolhida = max(desempenho, key=lambda par: par[:3])
-            resultado = avaliar_divisao(x, y, treino, validacao, escolhida, fabrica=fabrica)
-            resultado.update(fold_externo=numero, fold_interno=None, etapa="avaliacao_externa",
-                             tipo_dados=tipo_dados, sha256_dados=digest,
-                             protocolo_sha256=protocolo_sha,
-                             indices_validacao_sha256=_digest_indices(validacao))
-            registrar(resultado)
-        else:
-            registrar({"fold_externo": numero, "etapa": "avaliacao_externa",
-                       "status": "sem_configuracao_elegivel", "tipo_dados": tipo_dados,
-                       "sha256_dados": digest, "protocolo_sha256": protocolo_sha,
-                       "indices_validacao_sha256": _digest_indices(validacao)})
+        escolhas = {}
+        for comparacao, candidatas in comparacoes.items():
+            aptas = [d for d in desempenho if d[3].nome in candidatas]
+            if aptas:
+                escolhida = max(aptas, key=lambda par: par[:3])[3]
+                escolhas.setdefault(escolhida.nome, (escolhida, []))[1].append(comparacao)
+            else:
+                linha = {"fold_externo": numero, "etapa": "avaliacao_externa",
+                         "comparacao": comparacao, "status": "sem_configuracao_elegivel",
+                         "tipo_dados": tipo_dados, "sha256_dados": digest,
+                         "protocolo_sha256": protocolo_sha,
+                         "indices_validacao_sha256": _digest_indices(validacao)}
+                if _chave_resultado(linha) not in cache:
+                    registrar(linha)
+        for escolhida, selecoes in escolhas.values():
+            medir(escolhida, numero, None, treino, validacao, "avaliacao_externa",
+                  comparacoes=selecoes)
     return manifesto, linhas
