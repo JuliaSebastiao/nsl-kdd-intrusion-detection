@@ -147,6 +147,8 @@ class _PyTorchExistente:
             for lote in indices.split(512):
                 otimizador.zero_grad(set_to_none=True)
                 valor = perda(self.modelo(entradas_t[lote]).squeeze(1), rotulos_t[lote])
+                if not torch.isfinite(valor):
+                    raise RuntimeError("Perda nao finita no treinamento PyTorch")
                 valor.backward()
                 otimizador.step()
         self.epocas_concluidas_ = self.epocas
@@ -326,7 +328,8 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
         "tipo_dados": tipo_dados, "origem": origem, "sha256_dados": digest,
         "protocolo_sha256": protocolo_sha, "metodo": "StratifiedGroupKFold_aninhado",
         "papel_quinta_historica": "avaliacao_interna_reutilizada; nenhum fold e teste intocado",
-        "semente": semente, "externas": externas, "internas": internas,
+        "semente_divisoes": semente, "semente_modelos": SEMENTE,
+        "semente_amostragem": SEMENTE, "externas": externas, "internas": internas,
         "classes": CLASSES, "configuracoes": [asdict(c) for c in configuracoes],
         "divisoes": identificadores, "versoes": _versoes(),
         "python": sys.version, "plataforma": platform.platform(), "commit": _commit(),
@@ -343,7 +346,7 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
 
     for numero, treino, validacao, interno in plano:
         desempenho = []
-        for config in configuracoes:
+        for ordem, config in enumerate(configuracoes):
             tentativas = []
             for indice, (ajuste, val_interna) in enumerate(interno, 1):
                 resultado = avaliar_divisao(x, y, ajuste, val_interna, config, fabrica=fabrica)
@@ -351,9 +354,14 @@ def executar_avaliacao(entrada, configuracoes, destino, *, tipo_dados,
                 registrar(resultado)
                 tentativas.append(resultado)
             if all(r["elegivel"] for r in tentativas):
-                desempenho.append((float(np.mean([r["metricas"]["f1_macro"] for r in tentativas])), config))
+                desempenho.append((
+                    float(np.mean([r["metricas"]["f1_macro"] for r in tentativas])),
+                    float(np.mean([r["metricas"]["por_classe"]["anomaly"]["recall"]
+                                   for r in tentativas])),
+                    -ordem, config,
+                ))
         if desempenho:
-            _, escolhida = max(desempenho, key=lambda par: par[0])
+            _, _, _, escolhida = max(desempenho, key=lambda par: par[:3])
             resultado = avaliar_divisao(x, y, treino, validacao, escolhida, fabrica=fabrica)
             resultado.update(fold_externo=numero, fold_interno=None, etapa="avaliacao_externa",
                              tipo_dados=tipo_dados, sha256_dados=digest,
