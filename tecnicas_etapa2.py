@@ -1,4 +1,4 @@
-"""Transforma??es ajustadas somente na parcela de treino de cada divis?o."""
+"""Transformacoes ajustadas apenas no treino de cada divisao."""
 
 import numpy as np
 import pandas as pd
@@ -11,8 +11,8 @@ from dados_etapa2 import NOMINAIS, SEMENTE, escolher_linhas
 def transformar_numericas(treino, validacao, metodo, escala):
     treino = treino.to_numpy(dtype=np.float64, na_value=np.nan)
     validacao = validacao.to_numpy(dtype=np.float64, na_value=np.nan)
-    # Uma entrada sem observa??es no ajuste recebe zero em ambas as parcelas.
-    # Valores observados apenas na valida??o n?o participam do ajuste do KNN.
+    # Uma entrada sem observacoes no ajuste recebe zero em ambas as parcelas.
+    # Valores observados apenas na validacao nao participam do ajuste do KNN.
     if metodo == "knn":
         vazias = np.isnan(treino).all(axis=0)
         treino[:, vazias] = 0.0
@@ -51,8 +51,8 @@ def transformar_categoricas(treino, validacao, metodo, codificacao):
     for coluna in colunas:
         valores_treino = treino[[coluna]].to_numpy(dtype=object, na_value=np.nan)
         valores_validacao = validacao[[coluna]].to_numpy(dtype=object, na_value=np.nan)
-        # A moda n?o existe quando toda a coluna do ajuste est? ausente.
-        # Nesse caso a categoria expl?cita mant?m a posi??o da coluna.
+        # A moda nao existe quando toda a coluna do ajuste esta ausente.
+        # Nesse caso a categoria explicita mantem a posicao da coluna.
         estrategia_coluna = "constant" if pd.isna(valores_treino).all() else estrategia
         imputador = SimpleImputer(strategy=estrategia_coluna, fill_value="__ausente__")
         colunas_treino.append(imputador.fit_transform(valores_treino))
