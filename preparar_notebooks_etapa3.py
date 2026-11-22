@@ -86,7 +86,9 @@ def sincronizar_comparacao(*, check=False):
 
 **Disciplina:** Inteligência Artificial · Ciência da Computação · PUC Minas
 
-**Equipe:** Trabalho Prático 3 (nomes dos integrantes a completar pela equipe).
+**Equipe — Grupo 3:** Davi Lucas Dias Morais; Gabriel Marques Fantini;
+Julia Nathalia Sebastião Pinto; Thiago Tavares Willcox Noronha;
+Túlio Geraldo da Costa Silva.
 
 O objetivo é comparar classificadores de intrusão usando somente o **treino.csv oficial**,
 com `class` como alvo (`normal` ou `anomaly`). A base contém 69.833 registros e 49 atributos;
